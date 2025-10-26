@@ -1,18 +1,57 @@
-import { useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, ScrollView } from 'react-native';
+import EditProfileModal from '@/components/EditProfileModal';
+import LeaderboardModal from '@/components/LeaderboardModal';
+import SettingsModal from '@/components/SettingsModal';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useAuth } from '@/context/AuthContext';
+import { useSavedList } from '@/context/SavedListContext';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState('Reviews');
+  const [editProfileVisible, setEditProfileVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [leaderboardVisible, setLeaderboardVisible] = useState(false);
+  
+  const { user } = useAuth();
+  const { saved } = useSavedList();
+  const router = useRouter();
+
+  const handleInstagramPress = () => {
+    if (user?.instagramHandle) {
+      const username = user.instagramHandle.replace('@', '');
+      const instagramUrl = `instagram://user?username=${username}`;
+      const webUrl = `https://instagram.com/${username}`;
+      
+      Linking.canOpenURL(instagramUrl).then(supported => {
+        if (supported) {
+          Linking.openURL(instagramUrl);
+        } else {
+          Linking.openURL(webUrl);
+        }
+      }).catch(() => {
+        Linking.openURL(webUrl);
+      });
+    }
+  };
+
+  const handleRankPress = () => {
+    setLeaderboardVisible(true);
+  };
+
+  const handleEditPreferences = () => {
+    router.push('/onboarding/Survey');
+  };
 
   const renderReviewsContent = () => (
     <View style={styles.contentGrid}>
-      {Array.from({ length: 9 }).map((_, index) => (
+      {Array.from({ length: 25 }).map((_, index) => (
         <TouchableOpacity key={index} style={styles.gridItem}>
           <View style={styles.gridPlaceholder}>
-            <IconSymbol name="photo" size={30} color="#ccc" />
+            <Ionicons name="restaurant" size={30} color="#e65332" />
+            <Text style={styles.placeholderText}>Review {index + 1}</Text>
           </View>
         </TouchableOpacity>
       ))}
@@ -25,14 +64,14 @@ export default function ProfileScreen() {
         <View key={index} style={styles.threadItem}>
           <View style={styles.threadHeader}>
             <View style={styles.threadAvatar}>
-              <IconSymbol name="person.fill" size={20} color="#666" />
+              <Ionicons name="person" size={20} color="#666" />
             </View>
             <View style={styles.threadInfo}>
               <ThemedText style={styles.threadUsername}>username{index + 1}</ThemedText>
               <ThemedText style={styles.threadTime}>2h</ThemedText>
             </View>
             <TouchableOpacity>
-              <IconSymbol name="ellipsis" size={16} color="#666" />
+              <Ionicons name="ellipsis-horizontal" size={16} color="#666" />
             </TouchableOpacity>
           </View>
           <ThemedText style={styles.threadText}>
@@ -40,18 +79,18 @@ export default function ProfileScreen() {
           </ThemedText>
           <View style={styles.threadActions}>
             <TouchableOpacity style={styles.threadAction}>
-              <IconSymbol name="heart" size={16} color="#666" />
+              <Ionicons name="heart-outline" size={16} color="#666" />
               <ThemedText style={styles.actionText}>12</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity style={styles.threadAction}>
-              <IconSymbol name="bubble.left" size={16} color="#666" />
+              <Ionicons name="chatbubble-outline" size={16} color="#666" />
               <ThemedText style={styles.actionText}>3</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity style={styles.threadAction}>
-              <IconSymbol name="arrow.2.squarepath" size={16} color="#666" />
+              <Ionicons name="repeat-outline" size={16} color="#666" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.threadAction}>
-              <IconSymbol name="paperplane" size={16} color="#666" />
+              <Ionicons name="paper-plane-outline" size={16} color="#666" />
             </TouchableOpacity>
           </View>
         </View>
@@ -59,94 +98,196 @@ export default function ProfileScreen() {
     </View>
   );
 
+  const renderSavesContent = () => (
+    <View style={styles.contentGrid}>
+      {saved.length > 0 ? (
+        saved.map((restaurant, index) => (
+          <TouchableOpacity key={restaurant.id} style={styles.gridItem}>
+            <View style={styles.gridPlaceholder}>
+              <Ionicons name="heart" size={30} color="#e65332" />
+              <Text style={styles.placeholderText}>{restaurant.name}</Text>
+            </View>
+          </TouchableOpacity>
+        ))
+      ) : (
+        <View style={styles.emptyState}>
+          <Ionicons name="heart-outline" size={50} color="#ccc" />
+          <Text style={styles.emptyStateText}>No saved restaurants yet</Text>
+          <Text style={styles.emptyStateSubtext}>Start exploring to save your favorites!</Text>
+        </View>
+      )}
+    </View>
+  );
+
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <ThemedText style={styles.headerTitle}>Profile page</ThemedText>
-      </View>
-
-      {/* Profile Section */}
-      <View style={styles.profileSection}>
-        {/* Profile Picture and Name Row */}
-        <View style={styles.profileTopRow}>
-          <View style={styles.profilePictureContainer}>
-            <View style={styles.profilePicture}>
-              <IconSymbol name="person.fill" size={40} color="#666" />
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollView}>
+        {/* Banner Image */}
+        <TouchableOpacity 
+          style={styles.bannerContainer}
+          onPress={() => setEditProfileVisible(true)}
+        >
+          {user?.bannerImage ? (
+            <Image source={{ uri: user.bannerImage }} style={styles.bannerImage} />
+          ) : (
+            <View style={styles.bannerPlaceholder}>
+              <Ionicons name="camera" size={40} color="#ccc" />
+              <Text style={styles.bannerPlaceholderText}>Add Banner Image</Text>
             </View>
-          </View>
+          )}
           
-          <View style={styles.nameAndStats}>
-            <ThemedText style={styles.name}>Name</ThemedText>
-            
-            {/* Stats Row */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <ThemedText style={styles.statNumber}>10</ThemedText>
-                <ThemedText style={styles.statLabel}>Reviews</ThemedText>
+          {/* Settings Icon */}
+          <TouchableOpacity 
+            style={styles.settingsButton}
+            onPress={() => setSettingsVisible(true)}
+          >
+            <Ionicons name="settings" size={24} color="#fff" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+
+        {/* Profile Picture */}
+        <View style={styles.profilePictureContainer}>
+          <TouchableOpacity 
+            style={styles.profilePictureWrapper}
+            onPress={() => setEditProfileVisible(true)}
+          >
+            {user?.profileImage ? (
+              <Image source={{ uri: user.profileImage }} style={styles.profilePicture} />
+            ) : (
+              <View style={styles.profilePicturePlaceholder}>
+                <Ionicons name="person" size={40} color="#ccc" />
               </View>
-              <View style={styles.statItem}>
-                <ThemedText style={styles.statNumber}>100</ThemedText>
-                <ThemedText style={styles.statLabel}>Followers</ThemedText>
-              </View>
-              <View style={styles.statItem}>
-                <ThemedText style={styles.statNumber}>200</ThemedText>
-                <ThemedText style={styles.statLabel}>Following</ThemedText>
-              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* User Info */}
+        <View style={styles.userInfoContainer}>
+          <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
+          <Text style={styles.username}>@{user?.username || 'username'}</Text>
+          
+          {/* Instagram Handle */}
+          {user?.instagramHandle && (
+            <TouchableOpacity 
+              style={styles.instagramContainer}
+              onPress={handleInstagramPress}
+            >
+              <Ionicons name="logo-instagram" size={16} color="#e65332" />
+              <Text style={styles.instagramHandle}>{user.instagramHandle}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Stats */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{user?.reviewCount || 25}</Text>
+            <Text style={styles.statLabel}>Reviews</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>1.2K</Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>340</Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <TouchableOpacity style={styles.statItem} onPress={handleRankPress}>
+            <Text style={styles.statNumber}>🏆 #42</Text>
+            <Text style={styles.statLabel}>Rank</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Bio - Centered */}
+        <View style={styles.bioContainer}>
+          <Text style={styles.bioText}>{user?.bio || 'Add your bio here...'}</Text>
+          
+          {/* User Preferences */}
+          {user?.preferences && (
+            <View style={styles.preferencesContainer}>
+              {user.preferences.favoriteCuisines && user.preferences.favoriteCuisines.length > 0 && (
+                <View style={styles.preferenceSection}>
+                  <Text style={styles.preferenceLabel}>Favorite Cuisines:</Text>
+                  <View style={styles.preferenceChips}>
+                    {user.preferences.favoriteCuisines.map((cuisine) => (
+                      <View key={cuisine} style={styles.preferenceChip}>
+                        <Text style={styles.preferenceChipText}>{cuisine}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
-          </View>
-
-          {/* Action Icons */}
-          <View style={styles.actionIcons}>
-            <TouchableOpacity style={styles.actionIcon}>
-              <IconSymbol name="plus.square" size={24} color="#000" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionIcon}>
-              <IconSymbol name="line.3.horizontal" size={24} color="#000" />
-            </TouchableOpacity>
-          </View>
+          )}
         </View>
 
-        {/* Bio Section */}
-        <View style={styles.bioSection}>
-          <ThemedText style={styles.bioText}>Bio</ThemedText>
-          <ThemedText style={styles.bioPlaceholder}>Add your bio here...</ThemedText>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.editButton}>
-            <ThemedText style={styles.buttonText}>Edit profile</ThemedText>
+        {/* Edit Buttons - Under Bio */}
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.editProfileButton}
+            onPress={() => setEditProfileVisible(true)}
+          >
+            <Text style={styles.editProfileButtonText}>Edit Profile</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shareButton}>
-            <ThemedText style={styles.buttonText}>Share profile</ThemedText>
+          <TouchableOpacity 
+            style={styles.editPreferencesButton}
+            onPress={handleEditPreferences}
+          >
+            <Text style={styles.editPreferencesButtonText}>Edit Preferences</Text>
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Content Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'Reviews' && styles.activeTab]}
-          onPress={() => setActiveTab('Reviews')}
-        >
-          <ThemedText style={[styles.tabText, activeTab === 'Reviews' && styles.activeTabText]}>
-            Reviews
-          </ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'Threads' && styles.activeTab]}
-          onPress={() => setActiveTab('Threads')}
-        >
-          <ThemedText style={[styles.tabText, activeTab === 'Threads' && styles.activeTabText]}>
-            Threads
-          </ThemedText>
-        </TouchableOpacity>
-      </View>
+        {/* Content Tabs */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'Reviews' && styles.activeTab]}
+            onPress={() => setActiveTab('Reviews')}
+          >
+            <Text style={[styles.tabText, activeTab === 'Reviews' && styles.activeTabText]}>
+              Reviews
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'Threads' && styles.activeTab]}
+            onPress={() => setActiveTab('Threads')}
+          >
+            <Text style={[styles.tabText, activeTab === 'Threads' && styles.activeTabText]}>
+              Threads
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'Saves' && styles.activeTab]}
+            onPress={() => setActiveTab('Saves')}
+          >
+            <Text style={[styles.tabText, activeTab === 'Saves' && styles.activeTabText]}>
+              Saves
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Content Area */}
-      {activeTab === 'Reviews' ? renderReviewsContent() : renderThreadsContent()}
-    </ScrollView>
+        {/* Content Area */}
+        {activeTab === 'Reviews' && renderReviewsContent()}
+        {activeTab === 'Threads' && renderThreadsContent()}
+        {activeTab === 'Saves' && renderSavesContent()}
+      </ScrollView>
+
+      {/* Modals */}
+      <EditProfileModal 
+        visible={editProfileVisible} 
+        onClose={() => setEditProfileVisible(false)} 
+      />
+      <SettingsModal 
+        visible={settingsVisible} 
+        onClose={() => setSettingsVisible(false)} 
+      />
+      <LeaderboardModal 
+        visible={leaderboardVisible} 
+        onClose={() => setLeaderboardVisible(false)} 
+      />
+    </View>
   );
 }
 
@@ -155,141 +296,230 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#fff',
+  scrollView: {
+    flex: 1,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+  // Banner styles
+  bannerContainer: {
+    height: 220,
+    position: 'relative',
   },
-  profileSection: {
-    padding: 20,
-    backgroundColor: '#fff',
+  bannerImage: {
+    width: '100%',
+    height: '100%',
   },
-  profileTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 15,
-  },
-  profilePictureContainer: {
-    marginRight: 15,
-  },
-  profilePicture: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  bannerPlaceholder: {
+    flex: 1,
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#ddd',
   },
-  nameAndStats: {
+  bannerPlaceholderText: {
+    color: '#ccc',
+    marginTop: 8,
+    fontSize: 14,
+  },
+  settingsButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  // Profile picture styles
+  profilePictureContainer: {
+    alignItems: 'center',
+    marginTop: -50,
+    marginBottom: 20,
+  },
+  profilePictureWrapper: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  profilePicture: {
+    width: '100%',
+    height: '100%',
+  },
+  profilePicturePlaceholder: {
     flex: 1,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  name: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 10,
+  // User info styles
+  userInfoContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  displayName: {
+    fontSize: 24,
+    fontWeight: 'bold',
     color: '#000',
+    marginBottom: 4,
   },
+  username: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 8,
+  },
+  instagramContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  instagramHandle: {
+    fontSize: 14,
+    color: '#e65332',
+    marginLeft: 6,
+    fontWeight: '500',
+  },
+  // Stats styles
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    alignItems: 'center',
   },
   statItem: {
+    flex: 1,
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#000',
+    marginBottom: 2,
   },
   statLabel: {
     fontSize: 12,
     color: '#666',
-    marginTop: 2,
   },
-  actionIcons: {
-    flexDirection: 'row',
-    gap: 10,
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#e0e0e0',
+    marginHorizontal: 10,
   },
-  actionIcon: {
-    padding: 5,
-  },
-  bioSection: {
-    marginBottom: 15,
-  },
-  bioText: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 5,
-    color: '#000',
-  },
-  bioPlaceholder: {
-    fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 10,
+  // Bio styles - Centered
+  bioContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
     marginBottom: 20,
   },
-  editButton: {
-    flex: 1,
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
+  bioText: {
+    fontSize: 16,
+    color: '#000',
+    lineHeight: 22,
+    marginBottom: 16,
+    textAlign: 'center',
   },
-  shareButton: {
-    flex: 1,
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
+  preferencesContainer: {
+    marginTop: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
   },
-  buttonText: {
+  preferenceSection: {
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  preferenceLabel: {
     fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+    marginBottom: 8,
+  },
+  preferenceChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  preferenceChip: {
+    backgroundColor: '#e65332',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  preferenceChipText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#fff',
+  },
+  // Action buttons styles - Under Bio
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    gap: 12,
+  },
+  editProfileButton: {
+    flex: 1,
+    backgroundColor: '#e65332',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  editProfileButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  editPreferencesButton: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  editPreferencesButtonText: {
+    fontSize: 16,
     fontWeight: '500',
     color: '#000',
   },
+  // Tabs styles
   tabsContainer: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     backgroundColor: '#fff',
+    paddingHorizontal: 20,
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 16,
     alignItems: 'center',
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: '#000',
+    borderBottomColor: '#e65332',
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
+    fontWeight: '500',
   },
   activeTabText: {
-    color: '#000',
+    color: '#e65332',
     fontWeight: '600',
   },
+  // Content styles
   contentGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -303,18 +533,44 @@ const styles = StyleSheet.create({
   },
   gridPlaceholder: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#f8f9fa',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  placeholderText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666',
+    marginTop: 16,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
   },
   // Threads styles
   threadsContainer: {
     backgroundColor: '#fff',
-    padding: 10,
+    padding: 20,
   },
   threadItem: {
-    paddingVertical: 15,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
@@ -330,7 +586,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
   threadInfo: {
     flex: 1,
@@ -348,7 +604,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
     lineHeight: 20,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   threadActions: {
     flexDirection: 'row',
@@ -358,7 +614,7 @@ const styles = StyleSheet.create({
   threadAction: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
   actionText: {
     fontSize: 12,

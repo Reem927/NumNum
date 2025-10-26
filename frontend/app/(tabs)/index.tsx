@@ -1,15 +1,16 @@
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { useSavedList } from '@/context/SavedListContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useState, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function DiscoverScreen() {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const { toggleSave, toggleFavorite, isSaved } = useSavedList();
+  const { user } = useAuth();
 
   // 🔖 Bookmark animation state
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -51,18 +52,45 @@ export default function DiscoverScreen() {
     }, 150);
   };
   
-  const restaurants = [
-    { id: '1', name: 'Tatami', cuisine: 'Japanese', rating: '4.8', image: require('@/assets/images/tatami.png') },
-    { id: '2', name: 'Arabica', cuisine: 'Cafe', rating: '4.6', image: require('@/assets/images/arabica.png') },
-    { id: '3', name: 'Solo Eatery', cuisine: 'Italian', rating: '4.5', image: require('@/assets/images/tatami.png') },
-    { id: '4', name: 'Burger Bros', cuisine: 'American', rating: '4.2', image: require('@/assets/images/arabica.png') },
-    { id: '5', name: 'Sakura', cuisine: 'Japanese', rating: '4.9', image: require('@/assets/images/tatami.png') },
-    { id: '6', name: 'La Table', cuisine: 'French', rating: '4.4', image: require('@/assets/images/arabica.png') },
-    { id: '7', name: 'Casa Verde', cuisine: 'Mexican', rating: '4.3', image: require('@/assets/images/tatami.png') },
-    { id: '8', name: 'Byblos', cuisine: 'Lebanese', rating: '4.7', image: require('@/assets/images/arabica.png') },
-    { id: '9', name: 'K-Town Grill', cuisine: 'Korean', rating: '4.6', image: require('@/assets/images/tatami.png') },
-    { id: '10', name: 'Dragon Wok', cuisine: 'Chinese', rating: '4.5', image: require('@/assets/images/arabica.png') },
-  ];
+  // Get personalized restaurant recommendations based on user preferences
+  const getPersonalizedRestaurants = () => {
+    const allRestaurants = [
+      { id: '1', name: 'Tatami', cuisine: 'Japanese', rating: '4.8', image: require('@/assets/images/tatami.png') },
+      { id: '2', name: 'Arabica', cuisine: 'Lebanese', rating: '4.6', image: require('@/assets/images/arabica.png') },
+      { id: '3', name: 'Solo Eatery', cuisine: 'Italian', rating: '4.5', image: require('@/assets/images/tatami.png') },
+      { id: '4', name: 'Burger Bros', cuisine: 'American', rating: '4.2', image: require('@/assets/images/arabica.png') },
+      { id: '5', name: 'Sakura', cuisine: 'Japanese', rating: '4.9', image: require('@/assets/images/tatami.png') },
+      { id: '6', name: 'La Table', cuisine: 'French', rating: '4.4', image: require('@/assets/images/arabica.png') },
+      { id: '7', name: 'Casa Verde', cuisine: 'Mexican', rating: '4.3', image: require('@/assets/images/tatami.png') },
+      { id: '8', name: 'Byblos', cuisine: 'Lebanese', rating: '4.7', image: require('@/assets/images/arabica.png') },
+      { id: '9', name: 'K-Town Grill', cuisine: 'Korean', rating: '4.6', image: require('@/assets/images/tatami.png') },
+      { id: '10', name: 'Dragon Wok', cuisine: 'Chinese', rating: '4.5', image: require('@/assets/images/arabica.png') },
+      { id: '11', name: 'Spice Garden', cuisine: 'Indian', rating: '4.8', image: require('@/assets/images/tatami.png') },
+      { id: '12', name: 'Fish & Chips', cuisine: 'British', rating: '4.3', image: require('@/assets/images/arabica.png') },
+    ];
+
+    // If user has preferences, prioritize their favorite cuisines
+    if (user?.preferences?.favoriteCuisines && user.preferences.favoriteCuisines.length > 0) {
+      const favoriteCuisines = user.preferences.favoriteCuisines;
+      
+      // Sort restaurants: favorite cuisines first, then others
+      return allRestaurants.sort((a, b) => {
+        const aIsFavorite = favoriteCuisines.includes(a.cuisine);
+        const bIsFavorite = favoriteCuisines.includes(b.cuisine);
+        
+        if (aIsFavorite && !bIsFavorite) return -1;
+        if (!aIsFavorite && bIsFavorite) return 1;
+        
+        // If both are favorites or both aren't, sort by rating
+        return parseFloat(b.rating) - parseFloat(a.rating);
+      });
+    }
+    
+    // Default: sort by rating
+    return allRestaurants.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+  };
+
+  const restaurants = getPersonalizedRestaurants();
 
   const currentRestaurant = restaurants[currentIndex];
 
@@ -146,6 +174,17 @@ export default function DiscoverScreen() {
         <Text style={styles.cardSubtitle}>
           {currentRestaurant.cuisine} | Rating {currentRestaurant.rating}
         </Text>
+        
+        {/* Dietary Restriction Badges */}
+        {user?.preferences?.dietaryRestrictions && user.preferences.dietaryRestrictions.length > 0 && (
+          <View style={styles.badgesContainer}>
+            {user.preferences.dietaryRestrictions.map((restriction) => (
+              <View key={restriction} style={styles.badge}>
+                <Text style={styles.badgeText}>{restriction}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </Animated.View>
 
       {/* Tinder-style Buttons */}
@@ -242,6 +281,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
     paddingHorizontal: 16,
     marginBottom: 20,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    gap: 8,
+  },
+  badge: {
+    backgroundColor: '#e65332',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
   },
   buttonsContainer: {
     flexDirection: 'row',

@@ -2,23 +2,22 @@ import { useSavedList } from '@/context/SavedListContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import {FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View,} from 'react-native';
-import { Animated } from 'react-native';
-
+import { FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View, } from 'react-native';
+import FilterSavedList from './FilterSavedList';
 
 export default function SavedList() {
   const router = useRouter();
   const { saved, toggleSave, toggleFavorite, isFavorited } = useSavedList();
   const [menuVisible, setMenuVisible] = useState(false);
   const [sortedList, setSortedList] = useState(saved);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [activeSort, setActiveSort] = useState<'newest' | 'oldest'>('newest');
+  const [alphabeticalSort, setAlphabeticalSort] = useState<'asc' | 'desc' | null>(null);
+  const [dateSort, setDateSort] = useState<'newest' | 'oldest' | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     applySorts();
-  }, [saved, sortOrder, activeSort, favoritesOnly, searchQuery]);
+  }, [saved, alphabeticalSort, dateSort, favoritesOnly, searchQuery]);
 
   const applySorts = () => {
     let result = [...saved];
@@ -30,42 +29,47 @@ export default function SavedList() {
       );
     }
 
-    // Favorites
+    // Favorites filter
     if (favoritesOnly) {
       result = result.filter(item => item.isFavorited);
     }
 
-    // Sorting
+    // Sorting - handle multiple sorting criteria
     result.sort((a, b) => {
-      const nameComparison =
-        sortOrder === 'asc'
+      let comparison = 0;
+
+      // First priority: Alphabetical sorting (if enabled)
+      if (alphabeticalSort) {
+        comparison = alphabeticalSort === 'asc'
           ? a.name.localeCompare(b.name)
           : b.name.localeCompare(a.name);
-
-      if (nameComparison === 0) {
-        const dateA = a.addedAt ? new Date(a.addedAt).getTime() : 0;
-        const dateB = b.addedAt ? new Date(b.addedAt).getTime() : 0;
-        return activeSort === 'newest' ? dateB - dateA : dateA - dateB;
       }
 
-      return nameComparison;
+      // If alphabetical comparison is equal (or not used), use date sorting
+      if (comparison === 0 && dateSort) {
+        const dateA = a.addedAt ? new Date(a.addedAt).getTime() : 0;
+        const dateB = b.addedAt ? new Date(b.addedAt).getTime() : 0;
+        comparison = dateSort === 'newest' ? dateB - dateA : dateA - dateB;
+      }
+
+      return comparison;
     });
 
     setSortedList(result);
   };
 
-  const toggleAlphabetSort = () => {
-    setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+  const handleAlphabeticalSort = (sort: 'asc' | 'desc' | null) => {
+    setAlphabeticalSort(sort);
+    setMenuVisible(false);
+  };
+
+  const handleDateSort = (sort: 'newest' | 'oldest' | null) => {
+    setDateSort(sort);
     setMenuVisible(false);
   };
 
   const toggleFavorites = () => {
     setFavoritesOnly(prev => !prev);
-    setMenuVisible(false);
-  };
-
-  const toggleDateSort = () => {
-    setActiveSort(prev => (prev === 'newest' ? 'oldest' : 'newest'));
     setMenuVisible(false);
   };
 
@@ -79,52 +83,22 @@ export default function SavedList() {
 
         <Text style={styles.title}>Saved List</Text>
 
-        <TouchableOpacity onPress={() => setMenuVisible(!menuVisible)}>
+        <TouchableOpacity onPress={() => setMenuVisible(true)}>
           <Ionicons name="ellipsis-vertical" size={22} color="black" />
         </TouchableOpacity>
       </View>
 
-      {/* Dropdown Menu */}
-      {menuVisible && (
-        <View style={styles.dropdownMenu}>
-          <TouchableOpacity onPress={toggleAlphabetSort}>
-            <View style={styles.dropdownItemContainer}>
-              <Ionicons
-                name={sortOrder === 'asc' ? 'arrow-down-outline' : 'arrow-up-outline'}
-                size={18}
-                color="#555"
-              />
-              <Text style={styles.dropdownItem}>
-                {sortOrder === 'asc' ? 'Sort A–Z' : 'Sort Z–A'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={toggleDateSort}>
-            <View style={styles.dropdownItemContainer}>
-              <Ionicons
-                name={activeSort === 'newest' ? 'time-outline' : 'refresh-outline'}
-                size={18}
-                color="#555"
-              />
-              <Text style={styles.dropdownItem}>
-                {activeSort === 'newest' ? 'Newest First' : 'Oldest First'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={toggleFavorites}>
-            <View style={styles.dropdownItemContainer}>
-              <Ionicons
-                name={favoritesOnly ? 'star' : 'star-outline'}
-                size={18}
-                color="#FFA500"
-              />
-              <Text style={styles.dropdownItem}>Favorites Only</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Filter Modal */}
+      <FilterSavedList
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        alphabeticalSort={alphabeticalSort}
+        dateSort={dateSort}
+        favoritesOnly={favoritesOnly}
+        onAlphabeticalSort={handleAlphabeticalSort}
+        onDateSort={handleDateSort}
+        onToggleFavorites={toggleFavorites}
+      />
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -143,7 +117,7 @@ export default function SavedList() {
         )}
       </View>
 
-      {/* Empty state (keeps structure) */}
+      {/* Empty State */}
       {saved.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>No saved restaurants yet 😢</Text>
@@ -203,28 +177,6 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   title: { fontSize: 22, fontWeight: 'bold', color: '#333' },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 80,
-    right: 20,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-    width: 180,
-    zIndex: 20,
-  },
-  dropdownItemContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#eee',
-  },
-  dropdownItem: { marginLeft: 10, fontSize: 15, color: '#333' },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -255,8 +207,8 @@ const styles = StyleSheet.create({
   emptyState: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-start', // move alignment to top
-    marginTop: 260, // adjust this value until it looks perfect
+    justifyContent: 'flex-start',
+    marginTop: 260,
   },
   emptyText: { fontSize: 16, color: '#888' },
 });
