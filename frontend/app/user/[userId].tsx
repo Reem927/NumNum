@@ -1,52 +1,42 @@
-import EditProfileModal from '@/components/EditProfileModal';
 import FollowersFollowingModal from '@/components/FollowersFollowingModal';
 import LeaderboardModal from '@/components/LeaderboardModal';
-import SettingsModal from '@/components/SettingsModal';
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/context/AuthContext';
 import { useSavedList } from '@/context/SavedListContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export default function ProfileScreen() {
+export default function UserProfileScreen() {
+  const { userId } = useLocalSearchParams<{ userId: string }>();
+  const router = useRouter();
+  const { user: currentUser } = useAuth();
+  const { saved } = useSavedList();
   const [activeTab, setActiveTab] = useState('Reviews');
-  const [editProfileVisible, setEditProfileVisible] = useState(false);
-  const [settingsVisible, setSettingsVisible] = useState(false);
-  const [leaderboardVisible, setLeaderboardVisible] = useState(false);
   const [followersFollowingVisible, setFollowersFollowingVisible] = useState(false);
   const [followersFollowingTab, setFollowersFollowingTab] = useState<'followers' | 'following'>('followers');
-  
-  const { user } = useAuth();
-  const { saved } = useSavedList();
-  const router = useRouter();
+  const [leaderboardVisible, setLeaderboardVisible] = useState(false);
 
-  const handleInstagramPress = () => {
-    if (user?.instagramHandle) {
-      const username = user.instagramHandle.replace('@', '');
-      const instagramUrl = `instagram://user?username=${username}`;
-      const webUrl = `https://instagram.com/${username}`;
-      
-      Linking.canOpenURL(instagramUrl).then(supported => {
-        if (supported) {
-          Linking.openURL(instagramUrl);
-        } else {
-          Linking.openURL(webUrl);
-        }
-      }).catch(() => {
-        Linking.openURL(webUrl);
-      });
-    }
+  // TODO: Fetch user data from API using userId
+  // For now, using mock data
+  const user = {
+    id: userId,
+    username: 'otheruser',
+    displayName: 'Other User',
+    profileImage: undefined,
+    bannerImage: undefined,
+    bio: 'This is another user\'s profile',
+    reviewCount: 15,
+    followersCount: 500,
+    followingCount: 200,
+    rank: 50,
+    preferences: {
+      favoriteCuisines: ['Italian', 'Japanese'],
+    },
   };
 
-  const handleRankPress = () => {
-    setLeaderboardVisible(true);
-  };
-
-  const handleEditPreferences = () => {
-    router.push('/onboarding/Survey');
-  };
+  const isOwnProfile = currentUser?.id === userId;
 
   const handleFollowersPress = () => {
     setFollowersFollowingTab('followers');
@@ -58,9 +48,13 @@ export default function ProfileScreen() {
     setFollowersFollowingVisible(true);
   };
 
+  const handleRankPress = () => {
+    setLeaderboardVisible(true);
+  };
+
   const renderReviewsContent = () => (
     <View style={styles.contentGrid}>
-      {Array.from({ length: 25 }).map((_, index) => (
+      {Array.from({ length: 15 }).map((_, index) => (
         <TouchableOpacity key={index} style={styles.gridItem}>
           <View style={styles.gridPlaceholder}>
             <Ionicons name="restaurant" size={30} color="#e65332" />
@@ -73,14 +67,14 @@ export default function ProfileScreen() {
 
   const renderThreadsContent = () => (
     <View style={styles.threadsContainer}>
-      {Array.from({ length: 5 }).map((_, index) => (
+      {Array.from({ length: 3 }).map((_, index) => (
         <View key={index} style={styles.threadItem}>
           <View style={styles.threadHeader}>
             <View style={styles.threadAvatar}>
               <Ionicons name="person" size={20} color="#666" />
             </View>
             <View style={styles.threadInfo}>
-              <ThemedText style={styles.threadUsername}>username{index + 1}</ThemedText>
+              <ThemedText style={styles.threadUsername}>{user.username}</ThemedText>
               <ThemedText style={styles.threadTime}>2h</ThemedText>
             </View>
             <TouchableOpacity>
@@ -88,7 +82,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
           <ThemedText style={styles.threadText}>
-            This is a sample thread post #{index + 1}. It can contain multiple lines of text and will wrap naturally.
+            This is a sample thread post #{index + 1}.
           </ThemedText>
           <View style={styles.threadActions}>
             <TouchableOpacity style={styles.threadAction}>
@@ -98,12 +92,6 @@ export default function ProfileScreen() {
             <TouchableOpacity style={styles.threadAction}>
               <Ionicons name="chatbubble-outline" size={16} color="#666" />
               <ThemedText style={styles.actionText}>3</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.threadAction}>
-              <Ionicons name="repeat-outline" size={16} color="#666" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.threadAction}>
-              <Ionicons name="paper-plane-outline" size={16} color="#666" />
             </TouchableOpacity>
           </View>
         </View>
@@ -126,7 +114,6 @@ export default function ProfileScreen() {
         <View style={styles.emptyState}>
           <Ionicons name="heart-outline" size={50} color="#ccc" />
           <Text style={styles.emptyStateText}>No saved restaurants yet</Text>
-          <Text style={styles.emptyStateSubtext}>Start exploring to save your favorites!</Text>
         </View>
       )}
     </View>
@@ -134,89 +121,71 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{user.username}</Text>
+        <TouchableOpacity style={styles.moreButton}>
+          <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView style={styles.scrollView}>
         {/* Banner Image */}
-        <TouchableOpacity 
-          style={styles.bannerContainer}
-          onPress={() => setEditProfileVisible(true)}
-        >
+        <View style={styles.bannerContainer}>
           {user?.bannerImage ? (
             <Image source={{ uri: user.bannerImage }} style={styles.bannerImage} />
           ) : (
             <View style={styles.bannerPlaceholder}>
               <Ionicons name="camera" size={40} color="#ccc" />
-              <Text style={styles.bannerPlaceholderText}>Add Banner Image</Text>
             </View>
           )}
-          
-          {/* Settings Icon */}
-          <TouchableOpacity 
-            style={styles.settingsButton}
-            onPress={() => setSettingsVisible(true)}
-          >
-            <Ionicons name="settings" size={24} color="#fff" />
-          </TouchableOpacity>
-        </TouchableOpacity>
+        </View>
 
         {/* Profile Picture */}
         <View style={styles.profilePictureContainer}>
-          <TouchableOpacity 
-            style={styles.profilePictureWrapper}
-            onPress={() => setEditProfileVisible(true)}
-          >
-            {user?.profileImage ? (
-              <Image source={{ uri: user.profileImage }} style={styles.profilePicture} />
-            ) : (
-              <View style={styles.profilePicturePlaceholder}>
-                <Ionicons name="person" size={40} color="#ccc" />
-              </View>
-            )}
-          </TouchableOpacity>
+          {user?.profileImage ? (
+            <Image source={{ uri: user.profileImage }} style={styles.profilePicture} />
+          ) : (
+            <View style={styles.profilePicturePlaceholder}>
+              <Ionicons name="person" size={40} color="#ccc" />
+            </View>
+          )}
         </View>
 
         {/* User Info */}
         <View style={styles.userInfoContainer}>
           <Text style={styles.username}>{user?.username || 'username'}</Text>
           <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
-          
-          {/* Instagram Handle */}
-          {user?.instagramHandle && (
-            <TouchableOpacity 
-              style={styles.instagramContainer}
-              onPress={handleInstagramPress}
-            >
-              <Ionicons name="logo-instagram" size={16} color="#e65332" />
-              <Text style={styles.instagramHandle}>{user.instagramHandle}</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user?.reviewCount || 25}</Text>
+            <Text style={styles.statNumber}>{user?.reviewCount || 0}</Text>
             <Text style={styles.statLabel}>Reviews</Text>
           </View>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={handleFollowersPress}>
-            <Text style={styles.statNumber}>1.2K</Text>
+            <Text style={styles.statNumber}>{user?.followersCount || 0}</Text>
             <Text style={styles.statLabel}>Followers</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={handleFollowingPress}>
-            <Text style={styles.statNumber}>340</Text>
+            <Text style={styles.statNumber}>{user?.followingCount || 0}</Text>
             <Text style={styles.statLabel}>Following</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={handleRankPress}>
-            <Text style={styles.statNumber}>🏆 #42</Text>
+            <Text style={styles.statNumber}>🏆 #{user?.rank || 0}</Text>
             <Text style={styles.statLabel}>Rank</Text>
           </TouchableOpacity>
         </View>
 
         {/* Bio - Centered */}
         <View style={styles.bioContainer}>
-          <Text style={styles.bioText}>{user?.bio || 'Add your bio here...'}</Text>
+          <Text style={styles.bioText}>{user?.bio || 'No bio yet...'}</Text>
         </View>
 
         {/* User Preferences - Only show if they exist */}
@@ -235,21 +204,14 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Edit Buttons - Under Bio */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity 
-            style={styles.editProfileButton}
-            onPress={() => setEditProfileVisible(true)}
-          >
-            <Text style={styles.editProfileButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.editPreferencesButton}
-            onPress={handleEditPreferences}
-          >
-            <Text style={styles.editPreferencesButtonText}>Edit Preferences</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Follow Button (if not own profile) */}
+        {!isOwnProfile && (
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity style={styles.followButton}>
+              <Text style={styles.followButtonText}>Follow</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Content Tabs */}
         <View style={styles.tabsContainer}>
@@ -286,14 +248,6 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* Modals */}
-      <EditProfileModal 
-        visible={editProfileVisible} 
-        onClose={() => setEditProfileVisible(false)} 
-      />
-      <SettingsModal 
-        visible={settingsVisible} 
-        onClose={() => setSettingsVisible(false)} 
-      />
       <LeaderboardModal 
         visible={leaderboardVisible} 
         onClose={() => setLeaderboardVisible(false)} 
@@ -314,10 +268,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  backButton: {
+    padding: 5,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000',
+  },
+  moreButton: {
+    padding: 5,
+  },
   scrollView: {
     flex: 1,
   },
-  // Banner styles
   bannerContainer: {
     height: 220,
     position: 'relative',
@@ -332,26 +306,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bannerPlaceholderText: {
-    color: '#ccc',
-    marginTop: 8,
-    fontSize: 14,
-  },
-  settingsButton: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 20,
-    padding: 8,
-  },
-  // Profile picture styles
   profilePictureContainer: {
     alignItems: 'center',
     marginTop: -50,
     marginBottom: 20,
   },
-  profilePictureWrapper: {
+  profilePicture: {
     width: 100,
     height: 100,
     borderRadius: 50,
@@ -362,19 +322,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    overflow: 'hidden',
-  },
-  profilePicture: {
-    width: '100%',
-    height: '100%',
   },
   profilePicturePlaceholder: {
-    flex: 1,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: '#fff',
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // User info styles
   userInfoContainer: {
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -391,21 +349,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 8,
   },
-  instagramContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  instagramHandle: {
-    fontSize: 14,
-    color: '#e65332',
-    marginLeft: 6,
-    fontWeight: '500',
-  },
-  // Stats styles
   statsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -432,7 +375,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0e0e0',
     marginHorizontal: 10,
   },
-  // Bio styles - Centered
   bioContainer: {
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -477,14 +419,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#fff',
   },
-  // Action buttons styles - Under Bio
   actionButtonsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     marginBottom: 20,
-    gap: 12,
   },
-  editProfileButton: {
+  followButton: {
     flex: 1,
     backgroundColor: '#e65332',
     paddingVertical: 12,
@@ -492,27 +432,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  editProfileButtonText: {
+  followButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
   },
-  editPreferencesButton: {
-    flex: 1,
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  editPreferencesButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#000',
-  },
-  // Tabs styles
   tabsContainer: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -538,7 +462,6 @@ const styles = StyleSheet.create({
     color: '#e65332',
     fontWeight: '600',
   },
-  // Content styles
   contentGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -577,13 +500,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 16,
   },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  // Threads styles
   threadsContainer: {
     backgroundColor: '#fff',
     padding: 20,
@@ -640,3 +556,4 @@ const styles = StyleSheet.create({
     color: '#666',
   },
 });
+

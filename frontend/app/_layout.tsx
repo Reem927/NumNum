@@ -27,6 +27,7 @@ export default function RootLayout() {
             <Stack.Screen name="Filters" options={{ presentation: 'modal', headerShown: false}} />
             <Stack.Screen name="SavedList" options={{ headerShown: false }} />
             <Stack.Screen name="Search" options={{ presentation: 'fullScreenModal', animation: "slide_from_bottom", headerShown: false, gestureEnabled: true}} />
+            <Stack.Screen name="user/[userId]" options={{ headerShown: false }} />
           </Stack>
           <StatusBar style="auto" />
         </SavedListProvider>

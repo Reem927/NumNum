@@ -2,7 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { UserPreferences } from '@/types/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Alert,
     SafeAreaView,
@@ -39,10 +39,28 @@ const DIETARY_RESTRICTIONS = [
 
 export default function SurveyScreen() {
   const router = useRouter();
-  const { updatePreferences, completeOnboarding, loading } = useAuth();
+  const { updatePreferences, completeOnboarding, loading, user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
   const [selectedDietary, setSelectedDietary] = useState<string[]>([]);
+
+  // Load existing preferences when component mounts (for editing)
+  useEffect(() => {
+    if (user?.preferences) {
+      if (user.preferences.favoriteCuisines) {
+        setSelectedCuisines(user.preferences.favoriteCuisines);
+      }
+      if (user.preferences.dietaryRestrictions) {
+        // Add 'None' if no dietary restrictions exist
+        const dietary = user.preferences.dietaryRestrictions.length > 0
+          ? user.preferences.dietaryRestrictions
+          : ['None'];
+        setSelectedDietary(dietary);
+      } else {
+        setSelectedDietary(['None']);
+      }
+    }
+  }, [user]);
 
   const handleCuisineToggle = (cuisine: string) => {
     setSelectedCuisines(prev => 
@@ -82,12 +100,23 @@ export default function SurveyScreen() {
         dietaryRestrictions: selectedDietary.filter(r => r !== 'None'),
       };
   
-      // First, update preferences and then mark onboarding as complete
+      // Update preferences
       await updatePreferences(preferences);
-      await completeOnboarding();
+      
+      // Only complete onboarding if it hasn't been completed yet
+      if (!user?.hasCompletedOnboarding) {
+        await completeOnboarding();
+      }
   
-      Alert.alert('Setup Complete', 'Your preferences have been saved!');
-      router.replace('/(tabs)');
+      Alert.alert('Preferences Saved', 'Your preferences have been updated!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Navigate back to Profile page
+            router.push('/(tabs)/Profile');
+          }
+        }
+      ]);
     } catch (error) {
       console.error('Survey completion error:', error);
       Alert.alert('Error', 'Failed to save preferences. Please try again.');
@@ -320,6 +349,8 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 });
+
+
 
 
 

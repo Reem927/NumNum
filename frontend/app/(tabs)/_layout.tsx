@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -27,32 +28,44 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Discover',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="Map"
         options={{
-          title: 'Map',
           tabBarIcon: ({ color }) => <MaterialCommunityIcons size={28} name="map-marker" color={color} />,
         }}
       />
       <Tabs.Screen
+        name="Create"
+        options={{
+          tabBarIcon: () => (
+            <View style={{
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              backgroundColor: '#e65332',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}>
+              <MaterialCommunityIcons name="plus" size={24} color="#fff" />
+            </View>
+          ),
+        }}
+      />  
+      <Tabs.Screen
         name="Community"
         options={{
-          title: 'Community',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="text.bubble.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="Profile"
         options={{
-          title: 'Profile',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
         }}
       />
     </Tabs>
   );
 }
- 

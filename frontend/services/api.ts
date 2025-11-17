@@ -127,6 +127,30 @@ class ApiService {
       message: 'Onboarding completed successfully'
     };
   }
+
+  async getFollowers(userId: string): Promise<ApiResponse<User[]>> {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    // TODO: Replace with actual API call
+    return this.mockResponse([]);
+  }
+
+  async getFollowing(userId: string): Promise<ApiResponse<User[]>> {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    // TODO: Replace with actual API call
+    return this.mockResponse([]);
+  }
+
+  async followUser(targetUserId: string): Promise<ApiResponse<void>> {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    // TODO: Replace with actual API call
+    return this.mockResponse(undefined);
+  }
+
+  async unfollowUser(targetUserId: string): Promise<ApiResponse<void>> {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    // TODO: Replace with actual API call
+    return this.mockResponse(undefined);
+  }
   
   // Helper method for mock responses
   private mockResponse<T>(data: T): ApiResponse<T> {
@@ -139,6 +163,8 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
+
+
 
 
 

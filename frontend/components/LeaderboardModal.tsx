@@ -151,12 +151,17 @@ export default function LeaderboardModal({ visible, onClose }: LeaderboardModalP
 
                 <View style={styles.userInfo}>
                   <Text style={[
+                    styles.userUsername,
+                    user.id === currentUserData.id && styles.currentUserUsername
+                  ]}>
+                    {user.username}
+                  </Text>
+                  <Text style={[
                     styles.userName,
                     user.id === currentUserData.id && styles.currentUserName
                   ]}>
                     {user.name}
                   </Text>
-                  <Text style={styles.userUsername}>@{user.username}</Text>
                 </View>
 
                 <View style={styles.reviewCountContainer}>
@@ -270,18 +275,21 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
   },
-  userName: {
+  userUsername: {
     fontSize: 16,
     fontWeight: '600',
     color: '#000',
     marginBottom: 2,
   },
-  currentUserName: {
+  currentUserUsername: {
     color: '#e65332',
   },
-  userUsername: {
+  userName: {
     fontSize: 14,
     color: '#666',
+  },
+  currentUserName: {
+    color: '#e65332',
   },
   reviewCountContainer: {
     alignItems: 'center',
@@ -300,6 +308,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+
+
 
 
 
