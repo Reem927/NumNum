@@ -19,6 +19,8 @@ class ApiService {
       hasCompletedOnboarding: false, // New users haven't completed onboarding
       preferences: undefined,
       createdAt: new Date().toISOString(),
+      followersCount: 8,
+      followingCount: 8,
     };
     
     return {
@@ -48,6 +50,8 @@ class ApiService {
         dietaryRestrictions: ['Vegetarian']
       },
       createdAt: '2024-01-01T00:00:00Z',
+      followersCount: 8,
+      followingCount: 8,
     } : {
       id: '1',
       email: email,
@@ -59,6 +63,8 @@ class ApiService {
       hasCompletedOnboarding: false,
       preferences: undefined,
       createdAt: new Date().toISOString(),
+      followersCount: 8,
+      followingCount: 8,
     };
     
     return {
@@ -147,6 +153,24 @@ class ApiService {
   }
 
   async unfollowUser(targetUserId: string): Promise<ApiResponse<void>> {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    // TODO: Replace with actual API call
+    return this.mockResponse(undefined);
+  }
+
+  async sendFollowRequest(targetUserId: string): Promise<ApiResponse<void>> {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    // TODO: Replace with actual API call
+    return this.mockResponse(undefined);
+  }
+
+  async acceptFollowRequest(requestId: string): Promise<ApiResponse<void>> {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    // TODO: Replace with actual API call
+    return this.mockResponse(undefined);
+  }
+
+  async cancelFollowRequest(targetUserId: string): Promise<ApiResponse<void>> {
     await new Promise(resolve => setTimeout(resolve, 300));
     // TODO: Replace with actual API call
     return this.mockResponse(undefined);

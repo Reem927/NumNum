@@ -1,5 +1,9 @@
+import AboutAccountModal from '@/components/AboutAccountModal';
 import FollowersFollowingModal from '@/components/FollowersFollowingModal';
 import LeaderboardModal from '@/components/LeaderboardModal';
+import ReportModal from '@/components/ReportModal';
+import ShareModal from '@/components/ShareModal';
+import UserOptionsModal from '@/components/UserOptionsModal';
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/context/AuthContext';
 import { useSavedList } from '@/context/SavedListContext';
@@ -17,6 +21,10 @@ export default function UserProfileScreen() {
   const [followersFollowingVisible, setFollowersFollowingVisible] = useState(false);
   const [followersFollowingTab, setFollowersFollowingTab] = useState<'followers' | 'following'>('followers');
   const [leaderboardVisible, setLeaderboardVisible] = useState(false);
+  const [userOptionsVisible, setUserOptionsVisible] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [shareVisible, setShareVisible] = useState(false);
+  const [aboutVisible, setAboutVisible] = useState(false);
 
   // TODO: Fetch user data from API using userId
   // For now, using mock data
@@ -31,12 +39,15 @@ export default function UserProfileScreen() {
     followersCount: 500,
     followingCount: 200,
     rank: 50,
+    isPublic: false, // Mock: false = private account
+    followStatus: 'not_following' as 'not_following' | 'following' | 'requested',
     preferences: {
       favoriteCuisines: ['Italian', 'Japanese'],
     },
   };
 
   const isOwnProfile = currentUser?.id === userId;
+  const [followStatus, setFollowStatus] = useState<'not_following' | 'following' | 'requested'>(user.followStatus || 'not_following');
 
   const handleFollowersPress = () => {
     setFollowersFollowingTab('followers');
@@ -50,6 +61,68 @@ export default function UserProfileScreen() {
 
   const handleRankPress = () => {
     setLeaderboardVisible(true);
+  };
+
+  const handleFollow = async () => {
+    if (user.isPublic) {
+      // Public account - just follow
+      setFollowStatus('following');
+      // TODO: API call to follow
+    } else {
+      // Private account - send request
+      setFollowStatus('requested');
+      // TODO: API call to send follow request
+    }
+  };
+
+  const handleUnfollow = async () => {
+    setFollowStatus('not_following');
+    // TODO: API call to unfollow
+  };
+
+  const handleMessage = () => {
+    // TODO: Navigate to messages
+    console.log('Open messages');
+  };
+
+  const handleBlock = () => {
+    // TODO: Implement block user functionality
+    console.log('Block user:', userId);
+  };
+
+  const handleRestrict = () => {
+    // TODO: Implement restrict user functionality
+    console.log('Restrict user:', userId);
+  };
+
+  const handleReportPost = () => {
+    // TODO: Implement report post functionality
+    console.log('Report post/message/comment');
+  };
+
+  const handleReportAccount = () => {
+    // TODO: Implement report account functionality
+    console.log('Report account');
+  };
+
+  const handleQRCode = () => {
+    // TODO: Implement QR code generation
+    console.log('Generate QR code');
+  };
+
+  const handleEmail = () => {
+    // TODO: Implement email sharing
+    console.log('Share via email');
+  };
+
+  const handleCopyLink = () => {
+    // TODO: Implement copy link
+    console.log('Copy link');
+  };
+
+  const handleInstagram = () => {
+    // TODO: Implement Instagram sharing
+    console.log('Share to Instagram');
   };
 
   const renderReviewsContent = () => (
@@ -121,16 +194,6 @@ export default function UserProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{user.username}</Text>
-        <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
-        </TouchableOpacity>
-      </View>
-
       <ScrollView style={styles.scrollView}>
         {/* Banner Image */}
         <View style={styles.bannerContainer}>
@@ -141,6 +204,22 @@ export default function UserProfileScreen() {
               <Ionicons name="camera" size={40} color="#ccc" />
             </View>
           )}
+          
+          {/* Back Button */}
+          <TouchableOpacity 
+            style={styles.backButtonOverlay}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          
+          {/* Three Dots Button */}
+          <TouchableOpacity 
+            style={styles.moreButtonOverlay}
+            onPress={() => setUserOptionsVisible(true)}
+          >
+            <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
+          </TouchableOpacity>
         </View>
 
         {/* Profile Picture */}
@@ -204,12 +283,49 @@ export default function UserProfileScreen() {
           </View>
         )}
 
-        {/* Follow Button (if not own profile) */}
+        {/* Follow/Message Buttons (if not own profile) */}
         {!isOwnProfile && (
           <View style={styles.actionButtonsContainer}>
-            <TouchableOpacity style={styles.followButton}>
-              <Text style={styles.followButtonText}>Follow</Text>
-            </TouchableOpacity>
+            {user.isPublic ? (
+              // Public account: Follow (colored) + Message (grey)
+              <>
+                <TouchableOpacity
+                  style={followStatus === 'following' ? styles.followingButton : styles.followButton}
+                  onPress={followStatus === 'following' ? handleUnfollow : handleFollow}
+                >
+                  <Text style={followStatus === 'following' ? styles.followingButtonText : styles.followButtonText}>
+                    {followStatus === 'following' ? 'Following' : 'Follow'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.messageButton} onPress={handleMessage}>
+                  <Text style={styles.messageButtonText}>Message</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              // Private account
+              followStatus === 'following' ? (
+                // After accepted: Following (grey) + Message (grey)
+                <>
+                  <TouchableOpacity style={styles.followingButton} onPress={handleUnfollow}>
+                    <Text style={styles.followingButtonText}>Following</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.messageButton} onPress={handleMessage}>
+                    <Text style={styles.messageButtonText}>Message</Text>
+                  </TouchableOpacity>
+                </>
+              ) : followStatus === 'requested' ? (
+                // Request sent: Requested (grey)
+                <TouchableOpacity style={styles.requestedButton}>
+                  <Ionicons name="checkmark" size={16} color="#666" style={styles.requestedIcon} />
+                  <Text style={styles.requestedButtonText}>Requested</Text>
+                </TouchableOpacity>
+              ) : (
+                // Not following: Follow (colored)
+                <TouchableOpacity style={styles.followButton} onPress={handleFollow}>
+                  <Text style={styles.followButtonText}>Follow</Text>
+                </TouchableOpacity>
+              )
+            )}
           </View>
         )}
 
@@ -248,6 +364,36 @@ export default function UserProfileScreen() {
       </ScrollView>
 
       {/* Modals */}
+      <UserOptionsModal
+        visible={userOptionsVisible}
+        onClose={() => setUserOptionsVisible(false)}
+        onBlock={handleBlock}
+        onRestrict={handleRestrict}
+        onReport={() => setReportVisible(true)}
+        onShare={() => setShareVisible(true)}
+        onAbout={() => setAboutVisible(true)}
+      />
+      <ReportModal
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        onReportPost={handleReportPost}
+        onReportAccount={handleReportAccount}
+      />
+      <ShareModal
+        visible={shareVisible}
+        onClose={() => setShareVisible(false)}
+        onQRCode={handleQRCode}
+        onEmail={handleEmail}
+        onCopyLink={handleCopyLink}
+        onInstagram={handleInstagram}
+      />
+      <AboutAccountModal
+        visible={aboutVisible}
+        onClose={() => setAboutVisible(false)}
+        username={user.username}
+        profileImage={user.profileImage}
+        dateJoined="October 2015" // TODO: Get from user data
+      />
       <LeaderboardModal 
         visible={leaderboardVisible} 
         onClose={() => setLeaderboardVisible(false)} 
@@ -268,33 +414,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    padding: 5,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-  },
-  moreButton: {
-    padding: 5,
-  },
   scrollView: {
     flex: 1,
   },
   bannerContainer: {
     height: 220,
     position: 'relative',
+  },
+  backButtonOverlay: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  moreButtonOverlay: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    padding: 8,
   },
   bannerImage: {
     width: '100%',
@@ -378,19 +519,20 @@ const styles = StyleSheet.create({
   bioContainer: {
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 8,
   },
   bioText: {
     fontSize: 16,
     color: '#000',
     lineHeight: 22,
-    marginBottom: 16,
+    marginBottom: 8,
     textAlign: 'center',
   },
   preferencesContainer: {
     alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 20,
+    marginTop: 0,
   },
   preferenceSection: {
     marginBottom: 12,
@@ -423,6 +565,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 20,
     marginBottom: 20,
+    gap: 12,
   },
   followButton: {
     flex: 1,
@@ -436,6 +579,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  followingButton: {
+    flex: 1,
+    backgroundColor: '#e0e0e0',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  followingButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  requestedButton: {
+    flex: 1,
+    backgroundColor: '#e0e0e0',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  requestedIcon: {
+    marginRight: 6,
+  },
+  requestedButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  messageButton: {
+    flex: 1,
+    backgroundColor: '#e0e0e0',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  messageButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
   tabsContainer: {
     flexDirection: 'row',

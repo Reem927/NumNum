@@ -14,6 +14,11 @@ export interface User {
   bannerImage?: string;
   instagramHandle?: string;
   reviewCount?: number;
+  followersCount?: number;
+  followingCount?: number;
+  // Follow status fields
+  followStatus?: 'not_following' | 'following' | 'requested';
+  requestStatus?: 'none' | 'pending' | 'accepted';
 }
 
 export interface UserPreferences {

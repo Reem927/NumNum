@@ -2,13 +2,13 @@ import { useAuth } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 interface LeaderboardModalProps {
@@ -78,12 +78,13 @@ export default function LeaderboardModal({ visible, onClose }: LeaderboardModalP
       const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
-      
-      setTimeLeft(`${days}d ${hours}h ${minutes}m`);
+      const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+
+      setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s`);
     };
 
     updateTimeLeft();
-    const interval = setInterval(updateTimeLeft, 60000); // Update every minute
+    const interval = setInterval(updateTimeLeft, 1000);
 
     return () => clearInterval(interval);
   }, []);

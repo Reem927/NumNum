@@ -4,7 +4,6 @@ import { View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -15,8 +14,9 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        tabBarInactiveTintColor: '#e65332',  // Inactive tab color
+        tabBarActiveTintColor: '#e65332',  // Red/orange for ACTIVE tabs
+        tabBarInactiveTintColor: '#666',   // Grey for INACTIVE tabs
+        tabBarShowLabel: false,  // Remove all labels under buttons
         tabBarStyle: {
         backgroundColor: '#fff',  // Background color
         borderTopWidth: 1,       // Top border
@@ -40,16 +40,18 @@ export default function TabLayout() {
       <Tabs.Screen
         name="Create"
         options={{
-          tabBarIcon: () => (
+          tabBarIcon: ({ color, focused }) => (
             <View style={{
               width: 40,
               height: 40,
               borderRadius: 12,
-              backgroundColor: '#e65332',
+              borderWidth: 2.5,
+              borderColor: color, // Uses active/inactive color
+              backgroundColor: '#fff',
               justifyContent: 'center',
               alignItems: 'center',
             }}>
-              <MaterialCommunityIcons name="plus" size={24} color="#fff" />
+              <MaterialCommunityIcons name="plus" size={24} color={color} />
             </View>
           ),
         }}

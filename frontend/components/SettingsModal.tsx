@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
+import PrivacySettingsModal from '@/components/PrivacySettingsModal';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -37,6 +38,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
   const { signOut } = useAuth();
   const router = useRouter();
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections(prev => 
@@ -117,7 +119,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
           id: 'privacy',
           title: 'Privacy Settings',
           description: 'Make account public/private, control who can comment or follow, hide activity status',
-          onPress: () => Alert.alert('Coming Soon', 'Privacy settings will be available soon')
+          onPress: () => setPrivacyModalVisible(true)
         },
         {
           id: 'connected',
@@ -312,6 +314,11 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
           </TouchableOpacity>
         </ScrollView>
       </View>
+      
+      <PrivacySettingsModal
+        visible={privacyModalVisible}
+        onClose={() => setPrivacyModalVisible(false)}
+      />
     </Modal>
   );
 }

@@ -1,16 +1,17 @@
 import { useAuth } from '@/context/AuthContext';
+import { apiService } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 interface FollowersFollowingModalProps {
@@ -29,6 +30,8 @@ interface User {
   isVerified?: boolean;
   isFollowing?: boolean; // Whether current user follows this user
   followsBack?: boolean; // Whether this user follows current user back
+  isPublic?: boolean;
+  followStatus?: 'not_following' | 'following' | 'requested';
 }
 
 export default function FollowersFollowingModal({ 
@@ -39,7 +42,7 @@ export default function FollowersFollowingModal({
   username = 'username'
 }: FollowersFollowingModalProps) {
   const router = useRouter();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, updateFollowCounts } = useAuth();
   const [activeTab, setActiveTab] = useState<'followers' | 'following'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [followers, setFollowers] = useState<User[]>([]);
@@ -63,69 +66,48 @@ export default function FollowersFollowingModal({
 
   const loadData = async () => {
     setLoading(true);
-    // TODO: Replace with actual API calls
-    // const response = await apiService.getFollowers(userId);
-    // const followingResponse = await apiService.getFollowing(userId);
-    
-    // Mock data
-    const mockFollowers: User[] = [
-      { id: '1', username: 'annaclaramm', displayName: 'Arlene McCoy', isVerified: true, isFollowing: false, followsBack: false },
-      { id: '2', username: 'marciacristina', displayName: 'Leslie Alexander', isFollowing: true, followsBack: true },
-      { id: '3', username: 'afonsoinocente', displayName: 'Courtney Henry', isFollowing: false, followsBack: false },
-      { id: '4', username: 'fmacfadin', displayName: 'Floyd Miles', isFollowing: true, followsBack: true },
-      { id: '5', username: 'brunopadilha', displayName: 'Dianne Russell', isFollowing: true, followsBack: true },
-      { id: '6', username: 'kcrews', displayName: 'Marvin McKinney', isFollowing: true, followsBack: true },
-      { id: '7', username: 'sbeden', displayName: 'Savannah Nguyen', isFollowing: false, followsBack: false },
-      { id: '8', username: 'cpechae', displayName: 'Cameron Williamson', isFollowing: false, followsBack: false },
-    ];
-
-    const mockFollowing: User[] = [
-      { id: '1', username: 'annaclaramm', displayName: 'Arlene McCoy', isVerified: true, isFollowing: true },
-      { id: '2', username: 'marciacristina', displayName: 'Leslie Alexander', isFollowing: true },
-      { id: '3', username: 'afonsoinocente', displayName: 'Courtney Henry', isFollowing: true },
-      { id: '4', username: 'fmacfadin', displayName: 'Floyd Miles', isVerified: true, isFollowing: true },
-      { id: '5', username: 'brunopadilha', displayName: 'Dianne Russell', isFollowing: true },
-      { id: '6', username: 'kcrews', displayName: 'Marvin McKinney', isFollowing: true },
-      { id: '7', username: 'sbeden', displayName: 'Savannah Nguyen', isFollowing: true },
-      { id: '8', username: 'cpechae', displayName: 'Cameron Williamson', isFollowing: true },
-    ];
-
-    setFollowers(mockFollowers);
-    setFollowing(mockFollowing);
+  
+    const followersResponse = await apiService.getFollowers(userId!);
+    const followingResponse = await apiService.getFollowing(userId!);
+  
+    setFollowers(followersResponse.data);
+    setFollowing(followingResponse.data);
+  
     setLoading(false);
   };
 
   const handleFollow = async (targetUserId: string) => {
-    // TODO: Replace with actual API call
-    // await apiService.followUser(targetUserId);
-    
-    // Update local state
+    await apiService.followUser(targetUserId);
+  
     if (activeTab === 'followers') {
-      setFollowers(prev => prev.map(u => 
-        u.id === targetUserId ? { ...u, isFollowing: true } : u
-      ));
+      updateFollowCounts(+1, 0);
+      setFollowers(prev =>
+        prev.map(u => u.id === targetUserId ? { ...u, isFollowing: true, followStatus: 'following' } : u)
+      );
     } else {
-      setFollowing(prev => prev.map(u => 
-        u.id === targetUserId ? { ...u, isFollowing: true } : u
-      ));
+      updateFollowCounts(0, +1);
+      setFollowing(prev =>
+        prev.map(u => u.id === targetUserId ? { ...u, isFollowing: true, followStatus: 'following' } : u)
+      );
     }
   };
 
   const handleUnfollow = async (targetUserId: string) => {
-    // TODO: Replace with actual API call
-    // await apiService.unfollowUser(targetUserId);
-    
-    // Update local state
-    if (activeTab === 'followers') {
-      setFollowers(prev => prev.map(u => 
-        u.id === targetUserId ? { ...u, isFollowing: false } : u
-      ));
-    } else {
-      setFollowing(prev => prev.map(u => 
-        u.id === targetUserId ? { ...u, isFollowing: false } : u
-      ));
-    }
-  };
+  await apiService.unfollowUser(targetUserId);
+
+  if (activeTab === 'followers') {
+    updateFollowCounts(-1, 0);
+    setFollowers(prev =>
+      prev.map(u => u.id === targetUserId ? { ...u, isFollowing: false, followStatus: 'not_following' } : u)
+    );
+  } else {
+    updateFollowCounts(0, -1);
+    setFollowing(prev =>
+      prev.map(u => u.id === targetUserId ? { ...u, isFollowing: false, followStatus: 'not_following' } : u)
+    );
+  }
+};
+
 
   const handleUserPress = (targetUserId: string) => {
     onClose();
@@ -149,7 +131,9 @@ export default function FollowersFollowingModal({
       return 'Following';
     } else {
       // In followers tab
-      if (user.isFollowing) {
+      if (user.followStatus === 'requested') {
+        return 'Requested';
+      } else if (user.isFollowing || user.followStatus === 'following') {
         return 'Following';
       } else {
         return 'Follow Back';
@@ -158,12 +142,22 @@ export default function FollowersFollowingModal({
   };
 
   const getButtonStyle = (user: User) => {
-    const isFollowingUser = user.isFollowing;
+    const isFollowingUser = user.isFollowing || user.followStatus === 'following';
+    const isRequested = user.followStatus === 'requested';
+    
+    if (isRequested) {
+      return styles.requestedButton;
+    }
     return isFollowingUser ? styles.followingButton : styles.followButton;
   };
 
   const getButtonTextStyle = (user: User) => {
-    const isFollowingUser = user.isFollowing;
+    const isFollowingUser = user.isFollowing || user.followStatus === 'following';
+    const isRequested = user.followStatus === 'requested';
+    
+    if (isRequested) {
+      return styles.requestedButtonText;
+    }
     return isFollowingUser ? styles.followingButtonText : styles.followButtonText;
   };
 
@@ -258,13 +252,19 @@ export default function FollowersFollowingModal({
                   style={getButtonStyle(user)}
                   onPress={(e) => {
                     e.stopPropagation();
-                    if (user.isFollowing) {
+                    const isFollowingUser = user.isFollowing || user.followStatus === 'following';
+                    const isRequested = user.followStatus === 'requested';
+                    if (isFollowingUser) {
                       handleUnfollow(user.id);
-                    } else {
+                    } else if (!isRequested) {
                       handleFollow(user.id);
                     }
+                    // If requested, button is disabled (no action)
                   }}
                 >
+                  {user.followStatus === 'requested' && (
+                    <Ionicons name="checkmark" size={14} color="#666" style={{ marginRight: 4 }} />
+                  )}
                   <Text style={getButtonTextStyle(user)}>
                     {getButtonText(user)}
                   </Text>
@@ -431,6 +431,19 @@ const styles = StyleSheet.create({
   },
   followingButtonText: {
     color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  requestedButton: {
+    backgroundColor: '#e0e0e0',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  requestedButtonText: {
+    color: '#666',
     fontSize: 14,
     fontWeight: '600',
   },

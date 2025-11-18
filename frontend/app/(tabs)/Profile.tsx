@@ -8,7 +8,7 @@ import { useSavedList } from '@/context/SavedListContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Linking, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState('Reviews');
@@ -56,6 +56,43 @@ export default function ProfileScreen() {
   const handleFollowingPress = () => {
     setFollowersFollowingTab('following');
     setFollowersFollowingVisible(true);
+  };
+
+  const handleShareProfile = async () => {
+    try {
+      const profileUrl = `https://numnum.app/profile/${user?.username || user?.id}`;
+      const message = `Check out ${user?.displayName || user?.username}'s profile on NumNum! ${profileUrl}`;
+      
+      const result = await Share.share({
+        message: message,
+        url: profileUrl, // iOS will use this
+        title: `Share ${user?.displayName || user?.username}'s Profile`,
+      });
+
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          // Shared with activity type of result.activityType
+          console.log('Shared with', result.activityType);
+        } else {
+          // Shared
+          console.log('Profile shared successfully');
+        }
+      } else if (result.action === Share.dismissedAction) {
+        // Dismissed
+        console.log('Share dismissed');
+      }
+    } catch (error) {
+      console.error('Error sharing profile:', error);
+    }
+  };
+
+  // Helper function to format numbers
+  const formatCount = (count: number | undefined): string => {
+    if (!count) return '0';
+    if (count >= 1000) {
+      return (count / 1000).toFixed(1) + 'K';
+    }
+    return count.toString();
   };
 
   const renderReviewsContent = () => (
@@ -149,7 +186,15 @@ export default function ProfileScreen() {
             </View>
           )}
           
-          {/* Settings Icon */}
+          {/* Share Button - Top Left */}
+          <TouchableOpacity 
+            style={styles.shareButton}
+            onPress={handleShareProfile}
+          >
+            <Ionicons name="share-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+          
+          {/* Settings Icon - Top Right */}
           <TouchableOpacity 
             style={styles.settingsButton}
             onPress={() => setSettingsVisible(true)}
@@ -199,12 +244,12 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={handleFollowersPress}>
-            <Text style={styles.statNumber}>1.2K</Text>
+            <Text style={styles.statNumber}>{formatCount(user?.followersCount)}</Text>
             <Text style={styles.statLabel}>Followers</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={handleFollowingPress}>
-            <Text style={styles.statNumber}>340</Text>
+            <Text style={styles.statNumber}>{formatCount(user?.followingCount)}</Text>
             <Text style={styles.statLabel}>Following</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
@@ -337,6 +382,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
   },
+  shareButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    padding: 8,
+  },
   settingsButton: {
     position: 'absolute',
     top: 50,
@@ -436,19 +489,20 @@ const styles = StyleSheet.create({
   bioContainer: {
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 8,
   },
   bioText: {
     fontSize: 16,
     color: '#000',
     lineHeight: 22,
-    marginBottom: 16,
+    marginBottom: 8,
     textAlign: 'center',
   },
   preferencesContainer: {
     alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 20,
+    marginTop: 0,
   },
   preferenceSection: {
     marginBottom: 12,

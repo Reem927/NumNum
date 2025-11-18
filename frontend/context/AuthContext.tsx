@@ -12,6 +12,7 @@ type AuthContextType = {
   updatePreferences: (preferences: UserPreferences) => Promise<void>;
   updateProfile: (profileData: Partial<User>) => Promise<void>;
   completeOnboarding: () => Promise<void>;
+  updateFollowCounts: (followersDelta: number, followingDelta: number) => void; // ➕ added
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -43,13 +44,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setLoading(true);
     try {
       const response = await apiService.signUp(userData);
-      const newUser = {...response.data.user,isNewUser: true,hasCompletedOnboarding: false};
+      const newUser = { 
+        ...response.data.user, 
+        isNewUser: true, 
+        hasCompletedOnboarding: false 
+      };
 
-      // Store auth data
       await AsyncStorage.setItem('auth_token', response.data.token);
-      await AsyncStorage.setItem('user_data', JSON.stringify(response.data.user));
-      
-      setUser(response.data.user);
+      await AsyncStorage.setItem('user_data', JSON.stringify(newUser));
+
+      setUser(newUser);
     } catch (error) {
       console.error('Sign up error:', error);
       throw error;
@@ -62,13 +66,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setLoading(true);
     try {
       const response = await apiService.signIn(email, password);
-      const existingUser = { ...response.data.user, isNewUser: false };
+      const existingUser = { 
+        ...response.data.user, 
+        isNewUser: false 
+      };
       
-      // Store auth data
       await AsyncStorage.setItem('auth_token', response.data.token);
-      await AsyncStorage.setItem('user_data', JSON.stringify(response.data.user));
+      await AsyncStorage.setItem('user_data', JSON.stringify(existingUser));
       
-      setUser(response.data.user);
+      setUser(existingUser);
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
@@ -82,7 +88,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       await apiService.signOut();
       
-      // Clear auth data
       await AsyncStorage.removeItem('auth_token');
       await AsyncStorage.removeItem('user_data');
       
@@ -100,8 +105,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const response = await apiService.updateUserPreferences(user.id, preferences);
       
-      // Update local user data
-      const updatedUser = { ...user, preferences: response.data.preferences };
+      const updatedUser = { 
+        ...user, 
+        preferences: response.data.preferences 
+      };
+
       await AsyncStorage.setItem('user_data', JSON.stringify(updatedUser));
       setUser(updatedUser);
     } catch (error) {
@@ -114,8 +122,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user) return;
     
     try {
-      // Update local user data
-      const updatedUser = { ...user, ...profileData };
+      const updatedUser = { 
+        ...user, 
+        ...profileData 
+      };
+
       await AsyncStorage.setItem('user_data', JSON.stringify(updatedUser));
       setUser(updatedUser);
     } catch (error) {
@@ -128,16 +139,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user) return;
     
     try {
-      const response = await apiService.completeOnboarding(user.id);
+      await apiService.completeOnboarding(user.id);
       
-      // Update local user data
-      const completedUser = { ...user, hasCompletedOnboarding: true };
+      const completedUser = { 
+        ...user, 
+        hasCompletedOnboarding: true 
+      };
+
       await AsyncStorage.setItem('user_data', JSON.stringify(completedUser));
       setUser(completedUser);
     } catch (error) {
       console.error('Complete onboarding error:', error);
       throw error;
     }
+  };
+
+  // ⭐ NEW: Global update for follower/following counts
+  const updateFollowCounts = (followersDelta: number, followingDelta: number) => {
+    setUser(prev => {
+      if (!prev) return prev;
+
+      const updated = {
+        ...prev,
+        followersCount: (prev.followersCount ?? 0) + followersDelta,
+        followingCount: (prev.followingCount ?? 0) + followingDelta,
+      };
+
+      AsyncStorage.setItem('user_data', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   return (
@@ -150,6 +180,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       updatePreferences,
       updateProfile,
       completeOnboarding,
+      updateFollowCounts, // ⭐ exported here
     }}>
       {children}
     </AuthContext.Provider>
@@ -161,5 +192,3 @@ export const useAuth = () => {
   if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
-
-
