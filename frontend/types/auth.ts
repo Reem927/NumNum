@@ -6,7 +6,7 @@ export interface User {
   avatar?: string;
   bio?: string;
   isPublic: boolean;
-  hasCompletedOnboarding: boolean;  // Track onboarding status
+  hasCompletedOnboarding: boolean;
   preferences?: UserPreferences;
   createdAt: string;
   isNewUser?: boolean;
@@ -14,11 +14,14 @@ export interface User {
   bannerImage?: string;
   instagramHandle?: string;
   reviewCount?: number;
+  followersCount?: number;
+  followingCount?: number;
+  rank?: number;
 }
 
 export interface UserPreferences {
-  favoriteCuisines: string[];  // From your 10 cuisines
-  dietaryRestrictions: string[];  // Vegetarian, Vegan, Gluten-Free, etc.
+  favoriteCuisines: string[];
+  dietaryRestrictions: string[];
 }
 
 export interface SignUpData {
@@ -38,5 +41,4 @@ export interface ApiResponse<T> {
   success: boolean;
   message?: string;
 }
-
 

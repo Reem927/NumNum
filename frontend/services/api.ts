@@ -1,13 +1,11 @@
 import { ApiResponse, SignUpData, User, UserPreferences } from '@/types/auth';
 
 class ApiService {
-  private baseUrl = 'https://your-api.com/api'; // Your backend team will provide this
-  
-  // Mock implementations for now
+  private baseUrl = 'https://your-api.com/api';
+
   async signUp(userData: SignUpData): Promise<ApiResponse<{ user: User; token: string }>> {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     const mockUser: User = {
       id: '1',
       email: userData.email,
@@ -16,71 +14,71 @@ class ApiService {
       avatar: undefined,
       bio: '',
       isPublic: true,
-      hasCompletedOnboarding: false, // New users haven't completed onboarding
-      preferences: undefined,
-      createdAt: new Date().toISOString(),
-    };
-    
-    return {
-      data: { user: mockUser, token: 'mock-jwt-token' },
-      success: true,
-      message: 'Account created successfully'
-    };
-  }
-  
-  async signIn(email: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Mock different users based on email for testing
-    const isReturningUser = email === 'user@example.com';
-    
-    const mockUser: User = isReturningUser ? {
-      id: '2',
-      email: email,
-      username: 'foodlover123',
-      displayName: 'Food Lover',
-      avatar: 'https://via.placeholder.com/150',
-      bio: 'Passionate about discovering new flavors!',
-      isPublic: true,
-      hasCompletedOnboarding: true,
-      preferences: {
-        favoriteCuisines: ['Japanese', 'Italian', 'Lebanese'],
-        dietaryRestrictions: ['Vegetarian']
-      },
-      createdAt: '2024-01-01T00:00:00Z',
-    } : {
-      id: '1',
-      email: email,
-      username: 'newfoodie',
-      displayName: 'New Foodie',
-      avatar: undefined,
-      bio: '',
-      isPublic: true,
       hasCompletedOnboarding: false,
       preferences: undefined,
       createdAt: new Date().toISOString(),
     };
-    
+
     return {
       data: { user: mockUser, token: 'mock-jwt-token' },
       success: true,
-      message: 'Login successful'
+      message: 'Account created successfully',
     };
   }
-  
+
+  async signIn(email: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const isReturningUser = email === 'user@example.com';
+
+    const mockUser: User = isReturningUser
+      ? {
+          id: '2',
+          email: email,
+          username: 'foodlover123',
+          displayName: 'Food Lover',
+          avatar: 'https://via.placeholder.com/150',
+          bio: 'Passionate about discovering new flavors!',
+          isPublic: true,
+          hasCompletedOnboarding: true,
+          preferences: {
+            favoriteCuisines: ['Japanese', 'Italian', 'Lebanese'],
+            dietaryRestrictions: ['Vegetarian'],
+          },
+          createdAt: '2024-01-01T00:00:00Z',
+        }
+      : {
+          id: '1',
+          email: email,
+          username: 'newfoodie',
+          displayName: 'New Foodie',
+          avatar: undefined,
+          bio: '',
+          isPublic: true,
+          hasCompletedOnboarding: false,
+          preferences: undefined,
+          createdAt: new Date().toISOString(),
+        };
+
+    return {
+      data: { user: mockUser, token: 'mock-jwt-token' },
+      success: true,
+      message: 'Login successful',
+    };
+  }
+
   async signOut(): Promise<ApiResponse<void>> {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     return {
       data: undefined,
       success: true,
-      message: 'Logged out successfully'
+      message: 'Logged out successfully',
     };
   }
-  
+
   async updateUserPreferences(userId: string, preferences: UserPreferences): Promise<ApiResponse<User>> {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Mock user update
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
     const updatedUser: User = {
       id: userId,
       email: 'user@example.com',
@@ -89,22 +87,21 @@ class ApiService {
       avatar: 'https://via.placeholder.com/150',
       bio: 'Passionate about discovering new flavors!',
       isPublic: true,
-      hasCompletedOnboarding: false, // Still false until completeOnboarding is called
+      hasCompletedOnboarding: false,
       preferences: preferences,
       createdAt: '2024-01-01T00:00:00Z',
     };
-    
+
     return {
       data: updatedUser,
       success: true,
-      message: 'Preferences updated successfully'
+      message: 'Preferences updated successfully',
     };
   }
-  
+
   async completeOnboarding(userId: string): Promise<ApiResponse<User>> {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Mock user with completed onboarding
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     const completedUser: User = {
       id: userId,
       email: 'user@example.com',
@@ -116,31 +113,18 @@ class ApiService {
       hasCompletedOnboarding: true,
       preferences: {
         favoriteCuisines: ['Japanese', 'Italian', 'Lebanese'],
-        dietaryRestrictions: ['Vegetarian']
+        dietaryRestrictions: ['Vegetarian'],
       },
       createdAt: '2024-01-01T00:00:00Z',
     };
-    
+
     return {
       data: completedUser,
       success: true,
-      message: 'Onboarding completed successfully'
-    };
-  }
-  
-  // Helper method for mock responses
-  private mockResponse<T>(data: T): ApiResponse<T> {
-    return {
-      data,
-      success: true,
-      message: 'Mock response'
+      message: 'Onboarding completed successfully',
     };
   }
 }
 
 export const apiService = new ApiService();
-
-
-
-
 

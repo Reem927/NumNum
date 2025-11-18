@@ -1,16 +1,54 @@
 import { useAuth } from '@/context/AuthContext';
 import { useSavedList } from '@/context/SavedListContext';
+import { restaurantService } from '@/services/restaurant';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function DiscoverScreen() {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const { toggleSave, toggleFavorite, isSaved } = useSavedList();
+  const { toggleSave, toggleFavorite } = useSavedList();
   const { user } = useAuth();
+
+  const [restaurants, setRestaurants] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load restaurants from database
+  const loadRestaurants = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      const restaurantData = user
+        ? await restaurantService.getPersonalizedRestaurants(user.id, 12)
+        : await restaurantService.getAllRestaurants({ limit: 12 });
+      
+      // Convert to local format with mock images (until you upload real ones)
+      const formatted = restaurantData.map((r: any, index: number) => ({
+        id: r.id,
+        name: r.name,
+        cuisine: r.cuisine,
+        rating: r.rating?.toString() || '0.0',
+        // Use alternating placeholder images for now
+        image: index % 2 === 0 ? require('@/assets/images/tatami.png') : require('@/assets/images/arabica.png'),
+      }));
+      
+      setRestaurants(formatted);
+      console.log(`✅ Loaded ${formatted.length} restaurants from database`);
+    } catch (error) {
+      console.error('Error loading restaurants:', error);
+      // Fallback to mock data if database fails
+      setRestaurants(getMockRestaurants());
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadRestaurants();
+  }, [loadRestaurants]);
 
   // 🔖 Bookmark animation state
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -52,45 +90,21 @@ export default function DiscoverScreen() {
     }, 150);
   };
   
-  // Get personalized restaurant recommendations based on user preferences
-  const getPersonalizedRestaurants = () => {
-    const allRestaurants = [
-      { id: '1', name: 'Tatami', cuisine: 'Japanese', rating: '4.8', image: require('@/assets/images/tatami.png') },
-      { id: '2', name: 'Arabica', cuisine: 'Lebanese', rating: '4.6', image: require('@/assets/images/arabica.png') },
-      { id: '3', name: 'Solo Eatery', cuisine: 'Italian', rating: '4.5', image: require('@/assets/images/tatami.png') },
-      { id: '4', name: 'Burger Bros', cuisine: 'American', rating: '4.2', image: require('@/assets/images/arabica.png') },
-      { id: '5', name: 'Sakura', cuisine: 'Japanese', rating: '4.9', image: require('@/assets/images/tatami.png') },
-      { id: '6', name: 'La Table', cuisine: 'French', rating: '4.4', image: require('@/assets/images/arabica.png') },
-      { id: '7', name: 'Casa Verde', cuisine: 'Mexican', rating: '4.3', image: require('@/assets/images/tatami.png') },
-      { id: '8', name: 'Byblos', cuisine: 'Lebanese', rating: '4.7', image: require('@/assets/images/arabica.png') },
-      { id: '9', name: 'K-Town Grill', cuisine: 'Korean', rating: '4.6', image: require('@/assets/images/tatami.png') },
-      { id: '10', name: 'Dragon Wok', cuisine: 'Chinese', rating: '4.5', image: require('@/assets/images/arabica.png') },
-      { id: '11', name: 'Spice Garden', cuisine: 'Indian', rating: '4.8', image: require('@/assets/images/tatami.png') },
-      { id: '12', name: 'Fish & Chips', cuisine: 'British', rating: '4.3', image: require('@/assets/images/arabica.png') },
-    ];
-
-    // If user has preferences, prioritize their favorite cuisines
-    if (user?.preferences?.favoriteCuisines && user.preferences.favoriteCuisines.length > 0) {
-      const favoriteCuisines = user.preferences.favoriteCuisines;
-      
-      // Sort restaurants: favorite cuisines first, then others
-      return allRestaurants.sort((a, b) => {
-        const aIsFavorite = favoriteCuisines.includes(a.cuisine);
-        const bIsFavorite = favoriteCuisines.includes(b.cuisine);
-        
-        if (aIsFavorite && !bIsFavorite) return -1;
-        if (!aIsFavorite && bIsFavorite) return 1;
-        
-        // If both are favorites or both aren't, sort by rating
-        return parseFloat(b.rating) - parseFloat(a.rating);
-      });
-    }
-    
-    // Default: sort by rating
-    return allRestaurants.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
-  };
-
-  const restaurants = getPersonalizedRestaurants();
+  // Fallback mock data if database is not set up yet
+  const getMockRestaurants = () => [
+    { id: '1', name: 'Tatami', cuisine: 'Japanese', rating: '4.8', image: require('@/assets/images/tatami.png') },
+    { id: '2', name: 'Arabica', cuisine: 'Lebanese', rating: '4.6', image: require('@/assets/images/arabica.png') },
+    { id: '3', name: 'Solo Eatery', cuisine: 'Italian', rating: '4.5', image: require('@/assets/images/tatami.png') },
+    { id: '4', name: 'Burger Bros', cuisine: 'American', rating: '4.2', image: require('@/assets/images/arabica.png') },
+    { id: '5', name: 'Sakura', cuisine: 'Japanese', rating: '4.9', image: require('@/assets/images/tatami.png') },
+    { id: '6', name: 'La Table', cuisine: 'French', rating: '4.4', image: require('@/assets/images/arabica.png') },
+    { id: '7', name: 'Casa Verde', cuisine: 'Mexican', rating: '4.3', image: require('@/assets/images/tatami.png') },
+    { id: '8', name: 'Byblos', cuisine: 'Lebanese', rating: '4.7', image: require('@/assets/images/arabica.png') },
+    { id: '9', name: 'K-Town Grill', cuisine: 'Korean', rating: '4.6', image: require('@/assets/images/tatami.png') },
+    { id: '10', name: 'Dragon Wok', cuisine: 'Chinese', rating: '4.5', image: require('@/assets/images/arabica.png') },
+    { id: '11', name: 'Spice Garden', cuisine: 'Indian', rating: '4.8', image: require('@/assets/images/tatami.png') },
+    { id: '12', name: 'Fish & Chips', cuisine: 'British', rating: '4.3', image: require('@/assets/images/arabica.png') },
+  ];
 
   const currentRestaurant = restaurants[currentIndex];
 
@@ -121,10 +135,21 @@ export default function DiscoverScreen() {
 
 
 
-  if (!currentRestaurant) {
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text>Loading restaurants...</Text>
+      </View>
+    );
+  }
+
+  if (!currentRestaurant || restaurants.length === 0) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <Text>No more restaurants!</Text>
+        <Text style={{ marginTop: 10, color: '#666' }}>
+          {restaurants.length === 0 ? 'Database is not set up yet.' : 'You\'ve seen them all!'}
+        </Text>
       </View>
     );
   }

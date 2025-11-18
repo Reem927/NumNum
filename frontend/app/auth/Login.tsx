@@ -42,6 +42,7 @@ export default function LoginScreen() {
         }
       }
     } catch (error) {
+      console.error('Login failed:', error);
       Alert.alert('Login Failed', 'Invalid email or password');
     }
   };
@@ -121,7 +122,7 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
+          <Text style={styles.footerText}>Don&apos;t have an account? </Text>
           <TouchableOpacity onPress={() => router.push('/auth/Signup')}>
             <Text style={styles.signupLink}>Sign Up</Text>
           </TouchableOpacity>

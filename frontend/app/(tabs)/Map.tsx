@@ -2,11 +2,11 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { StyleSheet } from 'react-native';
 
-export default function DiscoverScreen() {
+export default function MapScreen() {
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">Discover</ThemedText>
-      <ThemedText>Welcome to the Discover tab!</ThemedText>
+      <ThemedText type="title">Map</ThemedText>
+      <ThemedText>Welcome to the Map tab!</ThemedText>
     </ThemedView>
   );
 }

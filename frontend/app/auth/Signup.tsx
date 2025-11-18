@@ -74,6 +74,7 @@ export default function SignupScreen() {
       });
       router.replace('/onboarding/Welcome');
     } catch (error) {
+      console.error('Signup failed:', error);
       Alert.alert('Signup Failed', 'An error occurred. Please try again.');
     }
   };

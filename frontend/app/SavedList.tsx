@@ -1,7 +1,7 @@
 import { useSavedList } from '@/context/SavedListContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import FilterSavedList from './FilterSavedList';
 
@@ -15,11 +15,7 @@ export default function SavedList() {
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    applySorts();
-  }, [saved, alphabeticalSort, dateSort, favoritesOnly, searchQuery]);
-
-  const applySorts = () => {
+  const applySorts = useCallback(() => {
     let result = [...saved];
 
     // Search
@@ -56,7 +52,11 @@ export default function SavedList() {
     });
 
     setSortedList(result);
-  };
+  }, [saved, searchQuery, favoritesOnly, alphabeticalSort, dateSort]);
+
+  useEffect(() => {
+    applySorts();
+  }, [applySorts]);
 
   const handleAlphabeticalSort = (sort: 'asc' | 'desc' | null) => {
     setAlphabeticalSort(sort);

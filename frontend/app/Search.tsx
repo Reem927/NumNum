@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -28,31 +28,37 @@ export default function SearchScreen() {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [randomSuggestions, setRandomSuggestions] = useState<string[]>([]);
 
-  const restaurants: Restaurant[] = [
-    { id: '1', name: 'Tatami', cuisine: 'Japanese', rating: '4.8', image: require('@/assets/images/tatami.png') },
-    { id: '2', name: 'Arabica', cuisine: 'Cafe', rating: '4.6', image: require('@/assets/images/arabica.png') },
-    { id: '3', name: 'Solo Eatery', cuisine: 'Italian', rating: '4.5', image: require('@/assets/images/tatami.png') },
-    { id: '4', name: 'Burger Bros', cuisine: 'American', rating: '4.2', image: require('@/assets/images/arabica.png') },
-    { id: '5', name: 'Sakura', cuisine: 'Japanese', rating: '4.9', image: require('@/assets/images/tatami.png') },
-    { id: '6', name: 'La Table', cuisine: 'French', rating: '4.4', image: require('@/assets/images/arabica.png') },
-    { id: '7', name: 'Casa Verde', cuisine: 'Mexican', rating: '4.3', image: require('@/assets/images/tatami.png') },
-    { id: '8', name: 'Byblos', cuisine: 'Lebanese', rating: '4.7', image: require('@/assets/images/arabica.png') },
-    { id: '9', name: 'K-Town Grill', cuisine: 'Korean', rating: '4.6', image: require('@/assets/images/tatami.png') },
-    { id: '10', name: 'Dragon Wok', cuisine: 'Chinese', rating: '4.5', image: require('@/assets/images/arabica.png') },
-  ];
+  const restaurants = useMemo<Restaurant[]>(
+    () => [
+      { id: '1', name: 'Tatami', cuisine: 'Japanese', rating: '4.8', image: require('@/assets/images/tatami.png') },
+      { id: '2', name: 'Arabica', cuisine: 'Cafe', rating: '4.6', image: require('@/assets/images/arabica.png') },
+      { id: '3', name: 'Solo Eatery', cuisine: 'Italian', rating: '4.5', image: require('@/assets/images/tatami.png') },
+      { id: '4', name: 'Burger Bros', cuisine: 'American', rating: '4.2', image: require('@/assets/images/arabica.png') },
+      { id: '5', name: 'Sakura', cuisine: 'Japanese', rating: '4.9', image: require('@/assets/images/tatami.png') },
+      { id: '6', name: 'La Table', cuisine: 'French', rating: '4.4', image: require('@/assets/images/arabica.png') },
+      { id: '7', name: 'Casa Verde', cuisine: 'Mexican', rating: '4.3', image: require('@/assets/images/tatami.png') },
+      { id: '8', name: 'Byblos', cuisine: 'Lebanese', rating: '4.7', image: require('@/assets/images/arabica.png') },
+      { id: '9', name: 'K-Town Grill', cuisine: 'Korean', rating: '4.6', image: require('@/assets/images/tatami.png') },
+      { id: '10', name: 'Dragon Wok', cuisine: 'Chinese', rating: '4.5', image: require('@/assets/images/arabica.png') },
+    ],
+    []
+  );
 
-  const cuisines = [
-    { name: 'Kuwaiti', emoji: '🇰🇼' },
-    { name: 'Indian', emoji: '🍛' },
-    { name: 'British', emoji: '🥧' },
-    { name: 'Lebanese', emoji: '🥙' },
-    { name: 'Japanese', emoji: '🍣' },
-    { name: 'Chinese', emoji: '🥡' }, // ✅ updated
-    { name: 'Italian', emoji: '🍝' },
-    { name: 'Korean', emoji: '🍜' }, // ✅ updated
-    { name: 'French', emoji: '🥐' },
-    { name: 'Mexican', emoji: '🌮' },
-  ];
+  const cuisines = useMemo(
+    () => [
+      { name: 'Kuwaiti', emoji: '🇰🇼' },
+      { name: 'Indian', emoji: '🍛' },
+      { name: 'British', emoji: '🥧' },
+      { name: 'Lebanese', emoji: '🥙' },
+      { name: 'Japanese', emoji: '🍣' },
+      { name: 'Chinese', emoji: '🥡' },
+      { name: 'Italian', emoji: '🍝' },
+      { name: 'Korean', emoji: '🍜' },
+      { name: 'French', emoji: '🥐' },
+      { name: 'Mexican', emoji: '🌮' },
+    ],
+    []
+  );
 
   // 🌀 Randomize 3 cuisines on mount
   useEffect(() => {
@@ -61,7 +67,7 @@ export default function SearchScreen() {
       .sort(() => 0.5 - Math.random())
       .slice(0, 3);
     setRandomSuggestions(shuffled);
-  }, []);
+  }, [cuisines]);
 
   // 🔍 Filter restaurants
   useEffect(() => {
@@ -75,7 +81,7 @@ export default function SearchScreen() {
     } else {
       setFilteredRestaurants([]);
     }
-  }, [searchQuery]);
+  }, [restaurants, searchQuery]);
 
   // 🧠 Add query to recents
   const addToRecents = (query: string) => {
@@ -201,7 +207,9 @@ export default function SearchScreen() {
             <>
               <Text style={styles.resultsTitle}>
                 {filteredRestaurants.length} result
-                {filteredRestaurants.length !== 1 ? 's' : ''} for "{searchQuery}"
+                {filteredRestaurants.length !== 1 ? 's' : ''} for {'"'}
+                {searchQuery}
+                {'"'}
               </Text>
               <FlatList
                 data={filteredRestaurants}
@@ -212,7 +220,9 @@ export default function SearchScreen() {
             </>
           ) : (
             <Text style={styles.noResultsText}>
-              No restaurants found for "{searchQuery}"
+              No restaurants found for {'"'}
+              {searchQuery}
+              {'"'}
             </Text>
           )}
         </View>
