@@ -5,8 +5,8 @@ import { StyleSheet } from 'react-native';
 export default function DiscoverScreen() {
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">Discover</ThemedText>
-      <ThemedText>Welcome to the Discover tab!</ThemedText>
+      <ThemedText type="title">Map</ThemedText>
+      <ThemedText>Welcome to the Map tab!</ThemedText>
     </ThemedView>
   );
 }

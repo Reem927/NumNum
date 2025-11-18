@@ -1,52 +1,53 @@
-import EditProfileModal from '@/components/EditProfileModal';
+import AboutAccountModal from '@/components/AboutAccountModal';
 import FollowersFollowingModal from '@/components/FollowersFollowingModal';
 import LeaderboardModal from '@/components/LeaderboardModal';
-import SettingsModal from '@/components/SettingsModal';
+import ReportModal from '@/components/ReportModal';
+import ShareModal from '@/components/ShareModal';
+import UserOptionsModal from '@/components/UserOptionsModal';
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/context/AuthContext';
 import { useSavedList } from '@/context/SavedListContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Image, Linking, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export default function ProfileScreen() {
+export default function UserProfileScreen() {
+  const { userId } = useLocalSearchParams<{ userId: string }>();
+  const router = useRouter();
+  const { user: currentUser } = useAuth();
+  const { saved } = useSavedList();
   const [activeTab, setActiveTab] = useState('Reviews');
-  const [editProfileVisible, setEditProfileVisible] = useState(false);
-  const [settingsVisible, setSettingsVisible] = useState(false);
-  const [leaderboardVisible, setLeaderboardVisible] = useState(false);
   const [followersFollowingVisible, setFollowersFollowingVisible] = useState(false);
   const [followersFollowingTab, setFollowersFollowingTab] = useState<'followers' | 'following'>('followers');
-  
-  const { user } = useAuth();
-  const { saved } = useSavedList();
-  const router = useRouter();
+  const [leaderboardVisible, setLeaderboardVisible] = useState(false);
+  const [userOptionsVisible, setUserOptionsVisible] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [shareVisible, setShareVisible] = useState(false);
+  const [aboutVisible, setAboutVisible] = useState(false);
 
-  const handleInstagramPress = () => {
-    if (user?.instagramHandle) {
-      const username = user.instagramHandle.replace('@', '');
-      const instagramUrl = `instagram://user?username=${username}`;
-      const webUrl = `https://instagram.com/${username}`;
-      
-      Linking.canOpenURL(instagramUrl).then(supported => {
-        if (supported) {
-          Linking.openURL(instagramUrl);
-        } else {
-          Linking.openURL(webUrl);
-        }
-      }).catch(() => {
-        Linking.openURL(webUrl);
-      });
-    }
+  // TODO: Fetch user data from API using userId
+  // For now, using mock data
+  const user = {
+    id: userId,
+    username: 'otheruser',
+    displayName: 'Other User',
+    profileImage: undefined,
+    bannerImage: undefined,
+    bio: 'This is another user\'s profile',
+    reviewCount: 15,
+    followersCount: 500,
+    followingCount: 200,
+    rank: 50,
+    isPublic: false, // Mock: false = private account
+    followStatus: 'not_following' as 'not_following' | 'following' | 'requested',
+    preferences: {
+      favoriteCuisines: ['Italian', 'Japanese'],
+    },
   };
 
-  const handleRankPress = () => {
-    setLeaderboardVisible(true);
-  };
-
-  const handleEditPreferences = () => {
-    router.push('/onboarding/Survey');
-  };
+  const isOwnProfile = currentUser?.id === userId;
+  const [followStatus, setFollowStatus] = useState<'not_following' | 'following' | 'requested'>(user.followStatus || 'not_following');
 
   const handleFollowersPress = () => {
     setFollowersFollowingTab('followers');
@@ -58,46 +59,75 @@ export default function ProfileScreen() {
     setFollowersFollowingVisible(true);
   };
 
-  const handleShareProfile = async () => {
-    try {
-      const profileUrl = `https://numnum.app/profile/${user?.username || user?.id}`;
-      const message = `Check out ${user?.displayName || user?.username}'s profile on NumNum! ${profileUrl}`;
-      
-      const result = await Share.share({
-        message: message,
-        url: profileUrl, // iOS will use this
-        title: `Share ${user?.displayName || user?.username}'s Profile`,
-      });
+  const handleRankPress = () => {
+    setLeaderboardVisible(true);
+  };
 
-      if (result.action === Share.sharedAction) {
-        if (result.activityType) {
-          // Shared with activity type of result.activityType
-          console.log('Shared with', result.activityType);
-        } else {
-          // Shared
-          console.log('Profile shared successfully');
-        }
-      } else if (result.action === Share.dismissedAction) {
-        // Dismissed
-        console.log('Share dismissed');
-      }
-    } catch (error) {
-      console.error('Error sharing profile:', error);
+  const handleFollow = async () => {
+    if (user.isPublic) {
+      // Public account - just follow
+      setFollowStatus('following');
+      // TODO: API call to follow
+    } else {
+      // Private account - send request
+      setFollowStatus('requested');
+      // TODO: API call to send follow request
     }
   };
 
-  // Helper function to format numbers
-  const formatCount = (count: number | undefined): string => {
-    if (!count) return '0';
-    if (count >= 1000) {
-      return (count / 1000).toFixed(1) + 'K';
-    }
-    return count.toString();
+  const handleUnfollow = async () => {
+    setFollowStatus('not_following');
+    // TODO: API call to unfollow
+  };
+
+  const handleMessage = () => {
+    // TODO: Navigate to messages
+    console.log('Open messages');
+  };
+
+  const handleBlock = () => {
+    // TODO: Implement block user functionality
+    console.log('Block user:', userId);
+  };
+
+  const handleRestrict = () => {
+    // TODO: Implement restrict user functionality
+    console.log('Restrict user:', userId);
+  };
+
+  const handleReportPost = () => {
+    // TODO: Implement report post functionality
+    console.log('Report post/message/comment');
+  };
+
+  const handleReportAccount = () => {
+    // TODO: Implement report account functionality
+    console.log('Report account');
+  };
+
+  const handleQRCode = () => {
+    // TODO: Implement QR code generation
+    console.log('Generate QR code');
+  };
+
+  const handleEmail = () => {
+    // TODO: Implement email sharing
+    console.log('Share via email');
+  };
+
+  const handleCopyLink = () => {
+    // TODO: Implement copy link
+    console.log('Copy link');
+  };
+
+  const handleInstagram = () => {
+    // TODO: Implement Instagram sharing
+    console.log('Share to Instagram');
   };
 
   const renderReviewsContent = () => (
     <View style={styles.contentGrid}>
-      {Array.from({ length: 25 }).map((_, index) => (
+      {Array.from({ length: 15 }).map((_, index) => (
         <TouchableOpacity key={index} style={styles.gridItem}>
           <View style={styles.gridPlaceholder}>
             <Ionicons name="restaurant" size={30} color="#e65332" />
@@ -110,14 +140,14 @@ export default function ProfileScreen() {
 
   const renderThreadsContent = () => (
     <View style={styles.threadsContainer}>
-      {Array.from({ length: 5 }).map((_, index) => (
+      {Array.from({ length: 3 }).map((_, index) => (
         <View key={index} style={styles.threadItem}>
           <View style={styles.threadHeader}>
             <View style={styles.threadAvatar}>
               <Ionicons name="person" size={20} color="#666" />
             </View>
             <View style={styles.threadInfo}>
-              <ThemedText style={styles.threadUsername}>username{index + 1}</ThemedText>
+              <ThemedText style={styles.threadUsername}>{user.username}</ThemedText>
               <ThemedText style={styles.threadTime}>2h</ThemedText>
             </View>
             <TouchableOpacity>
@@ -125,7 +155,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
           <ThemedText style={styles.threadText}>
-            This is a sample thread post #{index + 1}. It can contain multiple lines of text and will wrap naturally.
+            This is a sample thread post #{index + 1}.
           </ThemedText>
           <View style={styles.threadActions}>
             <TouchableOpacity style={styles.threadAction}>
@@ -135,12 +165,6 @@ export default function ProfileScreen() {
             <TouchableOpacity style={styles.threadAction}>
               <Ionicons name="chatbubble-outline" size={16} color="#666" />
               <ThemedText style={styles.actionText}>3</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.threadAction}>
-              <Ionicons name="repeat-outline" size={16} color="#666" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.threadAction}>
-              <Ionicons name="paper-plane-outline" size={16} color="#666" />
             </TouchableOpacity>
           </View>
         </View>
@@ -163,7 +187,6 @@ export default function ProfileScreen() {
         <View style={styles.emptyState}>
           <Ionicons name="heart-outline" size={50} color="#ccc" />
           <Text style={styles.emptyStateText}>No saved restaurants yet</Text>
-          <Text style={styles.emptyStateSubtext}>Start exploring to save your favorites!</Text>
         </View>
       )}
     </View>
@@ -173,95 +196,75 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
         {/* Banner Image */}
-        <TouchableOpacity 
-          style={styles.bannerContainer}
-          onPress={() => setEditProfileVisible(true)}
-        >
+        <View style={styles.bannerContainer}>
           {user?.bannerImage ? (
             <Image source={{ uri: user.bannerImage }} style={styles.bannerImage} />
           ) : (
             <View style={styles.bannerPlaceholder}>
               <Ionicons name="camera" size={40} color="#ccc" />
-              <Text style={styles.bannerPlaceholderText}>Add Banner Image</Text>
             </View>
           )}
           
-          {/* Share Button - Top Left */}
+          {/* Back Button */}
           <TouchableOpacity 
-            style={styles.shareButton}
-            onPress={handleShareProfile}
+            style={styles.backButtonOverlay}
+            onPress={() => router.back()}
           >
-            <Ionicons name="share-outline" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           
-          {/* Settings Icon - Top Right */}
+          {/* Three Dots Button */}
           <TouchableOpacity 
-            style={styles.settingsButton}
-            onPress={() => setSettingsVisible(true)}
+            style={styles.moreButtonOverlay}
+            onPress={() => setUserOptionsVisible(true)}
           >
-            <Ionicons name="settings" size={24} color="#fff" />
+            <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
           </TouchableOpacity>
-        </TouchableOpacity>
+        </View>
 
         {/* Profile Picture */}
         <View style={styles.profilePictureContainer}>
-          <TouchableOpacity 
-            style={styles.profilePictureWrapper}
-            onPress={() => setEditProfileVisible(true)}
-          >
-            {user?.profileImage ? (
-              <Image source={{ uri: user.profileImage }} style={styles.profilePicture} />
-            ) : (
-              <View style={styles.profilePicturePlaceholder}>
-                <Ionicons name="person" size={40} color="#ccc" />
-              </View>
-            )}
-          </TouchableOpacity>
+          {user?.profileImage ? (
+            <Image source={{ uri: user.profileImage }} style={styles.profilePicture} />
+          ) : (
+            <View style={styles.profilePicturePlaceholder}>
+              <Ionicons name="person" size={40} color="#ccc" />
+            </View>
+          )}
         </View>
 
         {/* User Info */}
         <View style={styles.userInfoContainer}>
           <Text style={styles.username}>{user?.username || 'username'}</Text>
           <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
-          
-          {/* Instagram Handle */}
-          {user?.instagramHandle && (
-            <TouchableOpacity 
-              style={styles.instagramContainer}
-              onPress={handleInstagramPress}
-            >
-              <Ionicons name="logo-instagram" size={16} color="#e65332" />
-              <Text style={styles.instagramHandle}>{user.instagramHandle}</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{user?.reviewCount || 25}</Text>
+            <Text style={styles.statNumber}>{user?.reviewCount || 0}</Text>
             <Text style={styles.statLabel}>Reviews</Text>
           </View>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={handleFollowersPress}>
-            <Text style={styles.statNumber}>{formatCount(user?.followersCount)}</Text>
+            <Text style={styles.statNumber}>{user?.followersCount || 0}</Text>
             <Text style={styles.statLabel}>Followers</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={handleFollowingPress}>
-            <Text style={styles.statNumber}>{formatCount(user?.followingCount)}</Text>
+            <Text style={styles.statNumber}>{user?.followingCount || 0}</Text>
             <Text style={styles.statLabel}>Following</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={handleRankPress}>
-            <Text style={styles.statNumber}>🏆 #42</Text>
+            <Text style={styles.statNumber}>🏆 #{user?.rank || 0}</Text>
             <Text style={styles.statLabel}>Rank</Text>
           </TouchableOpacity>
         </View>
 
         {/* Bio - Centered */}
         <View style={styles.bioContainer}>
-          <Text style={styles.bioText}>{user?.bio || 'Add your bio here...'}</Text>
+          <Text style={styles.bioText}>{user?.bio || 'No bio yet...'}</Text>
         </View>
 
         {/* User Preferences - Only show if they exist */}
@@ -280,21 +283,51 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Edit Buttons - Under Bio */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity 
-            style={styles.editProfileButton}
-            onPress={() => setEditProfileVisible(true)}
-          >
-            <Text style={styles.editProfileButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.editPreferencesButton}
-            onPress={handleEditPreferences}
-          >
-            <Text style={styles.editPreferencesButtonText}>Edit Preferences</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Follow/Message Buttons (if not own profile) */}
+        {!isOwnProfile && (
+          <View style={styles.actionButtonsContainer}>
+            {user.isPublic ? (
+              // Public account: Follow (colored) + Message (grey)
+              <>
+                <TouchableOpacity
+                  style={followStatus === 'following' ? styles.followingButton : styles.followButton}
+                  onPress={followStatus === 'following' ? handleUnfollow : handleFollow}
+                >
+                  <Text style={followStatus === 'following' ? styles.followingButtonText : styles.followButtonText}>
+                    {followStatus === 'following' ? 'Following' : 'Follow'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.messageButton} onPress={handleMessage}>
+                  <Text style={styles.messageButtonText}>Message</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              // Private account
+              followStatus === 'following' ? (
+                // After accepted: Following (grey) + Message (grey)
+                <>
+                  <TouchableOpacity style={styles.followingButton} onPress={handleUnfollow}>
+                    <Text style={styles.followingButtonText}>Following</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.messageButton} onPress={handleMessage}>
+                    <Text style={styles.messageButtonText}>Message</Text>
+                  </TouchableOpacity>
+                </>
+              ) : followStatus === 'requested' ? (
+                // Request sent: Requested (grey)
+                <TouchableOpacity style={styles.requestedButton}>
+                  <Ionicons name="checkmark" size={16} color="#666" style={styles.requestedIcon} />
+                  <Text style={styles.requestedButtonText}>Requested</Text>
+                </TouchableOpacity>
+              ) : (
+                // Not following: Follow (colored)
+                <TouchableOpacity style={styles.followButton} onPress={handleFollow}>
+                  <Text style={styles.followButtonText}>Follow</Text>
+                </TouchableOpacity>
+              )
+            )}
+          </View>
+        )}
 
         {/* Content Tabs */}
         <View style={styles.tabsContainer}>
@@ -331,13 +364,35 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* Modals */}
-      <EditProfileModal 
-        visible={editProfileVisible} 
-        onClose={() => setEditProfileVisible(false)} 
+      <UserOptionsModal
+        visible={userOptionsVisible}
+        onClose={() => setUserOptionsVisible(false)}
+        onBlock={handleBlock}
+        onRestrict={handleRestrict}
+        onReport={() => setReportVisible(true)}
+        onShare={() => setShareVisible(true)}
+        onAbout={() => setAboutVisible(true)}
       />
-      <SettingsModal 
-        visible={settingsVisible} 
-        onClose={() => setSettingsVisible(false)} 
+      <ReportModal
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        onReportPost={handleReportPost}
+        onReportAccount={handleReportAccount}
+      />
+      <ShareModal
+        visible={shareVisible}
+        onClose={() => setShareVisible(false)}
+        onQRCode={handleQRCode}
+        onEmail={handleEmail}
+        onCopyLink={handleCopyLink}
+        onInstagram={handleInstagram}
+      />
+      <AboutAccountModal
+        visible={aboutVisible}
+        onClose={() => setAboutVisible(false)}
+        username={user.username}
+        profileImage={user.profileImage}
+        dateJoined="October 2015" // TODO: Get from user data
       />
       <LeaderboardModal 
         visible={leaderboardVisible} 
@@ -362,10 +417,25 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  // Banner styles
   bannerContainer: {
     height: 220,
     position: 'relative',
+  },
+  backButtonOverlay: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  moreButtonOverlay: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    padding: 8,
   },
   bannerImage: {
     width: '100%',
@@ -377,34 +447,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bannerPlaceholderText: {
-    color: '#ccc',
-    marginTop: 8,
-    fontSize: 14,
-  },
-  shareButton: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 20,
-    padding: 8,
-  },
-  settingsButton: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 20,
-    padding: 8,
-  },
-  // Profile picture styles
   profilePictureContainer: {
     alignItems: 'center',
     marginTop: -50,
     marginBottom: 20,
   },
-  profilePictureWrapper: {
+  profilePicture: {
     width: 100,
     height: 100,
     borderRadius: 50,
@@ -415,19 +463,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    overflow: 'hidden',
-  },
-  profilePicture: {
-    width: '100%',
-    height: '100%',
   },
   profilePicturePlaceholder: {
-    flex: 1,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: '#fff',
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // User info styles
   userInfoContainer: {
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -444,21 +490,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 8,
   },
-  instagramContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  instagramHandle: {
-    fontSize: 14,
-    color: '#e65332',
-    marginLeft: 6,
-    fontWeight: '500',
-  },
-  // Stats styles
   statsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -485,7 +516,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0e0e0',
     marginHorizontal: 10,
   },
-  // Bio styles - Centered
   bioContainer: {
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -531,14 +561,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#fff',
   },
-  // Action buttons styles - Under Bio
   actionButtonsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     marginBottom: 20,
     gap: 12,
   },
-  editProfileButton: {
+  followButton: {
     flex: 1,
     backgroundColor: '#e65332',
     paddingVertical: 12,
@@ -546,27 +575,55 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  editProfileButtonText: {
+  followButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
   },
-  editPreferencesButton: {
+  followingButton: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#e0e0e0',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
   },
-  editPreferencesButtonText: {
+  followingButtonText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#000',
+    fontWeight: '600',
+    color: '#333',
   },
-  // Tabs styles
+  requestedButton: {
+    flex: 1,
+    backgroundColor: '#e0e0e0',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  requestedIcon: {
+    marginRight: 6,
+  },
+  requestedButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  messageButton: {
+    flex: 1,
+    backgroundColor: '#e0e0e0',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  messageButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
   tabsContainer: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -592,7 +649,6 @@ const styles = StyleSheet.create({
     color: '#e65332',
     fontWeight: '600',
   },
-  // Content styles
   contentGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -631,13 +687,6 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 16,
   },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  // Threads styles
   threadsContainer: {
     backgroundColor: '#fff',
     padding: 20,
@@ -694,3 +743,4 @@ const styles = StyleSheet.create({
     color: '#666',
   },
 });
+
