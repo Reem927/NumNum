@@ -2,12 +2,20 @@ import { useSavedList } from '@/context/SavedListContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View, } from 'react-native';
+import {
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import FilterSavedList from './FilterSavedList';
 
 export default function SavedList() {
   const router = useRouter();
-  const { saved, toggleSave, toggleFavorite, isFavorited } = useSavedList();
+  const { saved, toggleSave, toggleFavorite } = useSavedList();
   const [menuVisible, setMenuVisible] = useState(false);
   const [sortedList, setSortedList] = useState(saved);
   const [alphabeticalSort, setAlphabeticalSort] = useState<'asc' | 'desc' | null>(null);
@@ -24,14 +32,14 @@ export default function SavedList() {
 
     // Search
     if (searchQuery.trim()) {
-      result = result.filter(item =>
+      result = result.filter((item) =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
     // Favorites filter
     if (favoritesOnly) {
-      result = result.filter(item => item.isFavorited);
+      result = result.filter((item) => item.isFavorite);
     }
 
     // Sorting - handle multiple sorting criteria
@@ -40,9 +48,10 @@ export default function SavedList() {
 
       // First priority: Alphabetical sorting (if enabled)
       if (alphabeticalSort) {
-        comparison = alphabeticalSort === 'asc'
-          ? a.name.localeCompare(b.name)
-          : b.name.localeCompare(a.name);
+        comparison =
+          alphabeticalSort === 'asc'
+            ? a.name.localeCompare(b.name)
+            : b.name.localeCompare(a.name);
       }
 
       // If alphabetical comparison is equal (or not used), use date sorting
@@ -69,7 +78,7 @@ export default function SavedList() {
   };
 
   const toggleFavorites = () => {
-    setFavoritesOnly(prev => !prev);
+    setFavoritesOnly((prev) => !prev);
     setMenuVisible(false);
   };
 
@@ -124,6 +133,8 @@ export default function SavedList() {
         </View>
       ) : (
         <FlatList
+          style={styles.list} // 👈 make list fill remaining space
+          contentContainerStyle={styles.listContent} // padding at bottom
           data={sortedList}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
@@ -147,7 +158,7 @@ export default function SavedList() {
                   onPress={() => toggleFavorite(item.id)}
                 >
                   <Ionicons
-                    name={isFavorited(item.id) ? 'star' : 'star-outline'}
+                    name={item.isFavorite ? 'star' : 'star-outline'}
                     size={24}
                     color="#FFA500"
                   />
@@ -169,7 +180,12 @@ export default function SavedList() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', paddingTop: 60, paddingHorizontal: 20 },
+  container: {
+    flex: 1, // important for FlatList height
+    backgroundColor: '#fff',
+    paddingTop: 60,
+    paddingHorizontal: 20,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -188,6 +204,12 @@ const styles = StyleSheet.create({
   },
   searchIcon: { marginRight: 10 },
   searchInput: { flex: 1, fontSize: 16, color: '#333' },
+  list: {
+    flex: 1, // 👈 makes the list scrollable
+  },
+  listContent: {
+    paddingBottom: 40, // so last item isn't hidden behind tab bar
+  },
   card: {
     flexDirection: 'row',
     alignItems: 'center',

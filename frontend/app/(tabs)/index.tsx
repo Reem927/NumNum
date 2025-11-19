@@ -3,13 +3,61 @@ import { useSavedList } from '@/context/SavedListContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { supabase } from '../../lib/supabase';
+
+// Shape of a row from Supabase
+type RestaurantRow = {
+  id: string;
+  name: string;
+  cuisine: string | null;
+  rating: number | null;
+  image_url: string | null;
+};
+
+// Shape we actually use in the UI (with image resolved)
+type RestaurantCard = {
+  id: string;
+  name: string;
+  cuisine: string;
+  rating: string;
+  image: any; // require(...) or { uri: string }
+};
+
+// Fallback local images by cuisine
+const CUISINE_IMAGE_MAP: Record<string, any> = {
+  Japanese: require('@/assets/images/tatami.png'),
+  Lebanese: require('@/assets/images/arabica.png'),
+  Italian: require('@/assets/images/tatami.png'),
+  American: require('@/assets/images/arabica.png'),
+  French: require('@/assets/images/arabica.png'),
+  Mexican: require('@/assets/images/tatami.png'),
+  Korean: require('@/assets/images/tatami.png'),
+  Chinese: require('@/assets/images/arabica.png'),
+  Indian: require('@/assets/images/tatami.png'),
+  British: require('@/assets/images/arabica.png'),
+};
+
+const DEFAULT_IMAGE = require('@/assets/images/tatami.png');
+
+function getFallbackImage(cuisine?: string | null) {
+  if (!cuisine) return DEFAULT_IMAGE;
+  return CUISINE_IMAGE_MAP[cuisine] ?? DEFAULT_IMAGE;
+}
 
 export default function DiscoverScreen() {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const { toggleSave, toggleFavorite, isSaved } = useSavedList();
+  const { toggleSave, toggleFavorite, isSaved } = useSavedList(); // 👈 use isSaved
   const { user } = useAuth();
 
   // 🔖 Bookmark animation state
@@ -19,11 +67,14 @@ export default function DiscoverScreen() {
   const translateX = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
 
+  // Restaurants from Supabase
+  const [restaurants, setRestaurants] = useState<RestaurantCard[]>([]);
+  const [loadingRestaurants, setLoadingRestaurants] = useState(true);
+  const [restaurantsError, setRestaurantsError] = useState<string | null>(null);
 
-  // Reset when returning to Home
+  // Reset bookmark when returning to Home
   useFocusEffect(
     useCallback(() => {
-      // When screen is focused (back to home), reset to outlined
       setIsBookmarked(false);
     }, [])
   );
@@ -42,68 +93,121 @@ export default function DiscoverScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  
+
     // Immediately fill the icon
     setIsBookmarked(true);
-  
+
     // Wait for animation, then navigate
     setTimeout(() => {
       router.push('/SavedList');
     }, 150);
   };
-  
-  // Get personalized restaurant recommendations based on user preferences
-  const getPersonalizedRestaurants = () => {
-    const allRestaurants = [
-      { id: '1', name: 'Tatami', cuisine: 'Japanese', rating: '4.8', image: require('@/assets/images/tatami.png') },
-      { id: '2', name: 'Arabica', cuisine: 'Lebanese', rating: '4.6', image: require('@/assets/images/arabica.png') },
-      { id: '3', name: 'Solo Eatery', cuisine: 'Italian', rating: '4.5', image: require('@/assets/images/tatami.png') },
-      { id: '4', name: 'Burger Bros', cuisine: 'American', rating: '4.2', image: require('@/assets/images/arabica.png') },
-      { id: '5', name: 'Sakura', cuisine: 'Japanese', rating: '4.9', image: require('@/assets/images/tatami.png') },
-      { id: '6', name: 'La Table', cuisine: 'French', rating: '4.4', image: require('@/assets/images/arabica.png') },
-      { id: '7', name: 'Casa Verde', cuisine: 'Mexican', rating: '4.3', image: require('@/assets/images/tatami.png') },
-      { id: '8', name: 'Byblos', cuisine: 'Lebanese', rating: '4.7', image: require('@/assets/images/arabica.png') },
-      { id: '9', name: 'K-Town Grill', cuisine: 'Korean', rating: '4.6', image: require('@/assets/images/tatami.png') },
-      { id: '10', name: 'Dragon Wok', cuisine: 'Chinese', rating: '4.5', image: require('@/assets/images/arabica.png') },
-      { id: '11', name: 'Spice Garden', cuisine: 'Indian', rating: '4.8', image: require('@/assets/images/tatami.png') },
-      { id: '12', name: 'Fish & Chips', cuisine: 'British', rating: '4.3', image: require('@/assets/images/arabica.png') },
-    ];
 
+  // 🔌 Fetch restaurants from Supabase once on mount
+  useEffect(() => {
+    const fetchRestaurants = async () => {
+      setLoadingRestaurants(true);
+      setRestaurantsError(null);
+
+      const { data, error } = await supabase
+        .from('restaurants')
+        .select('id, name, cuisine, rating, image_url')
+        .order('rating', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching restaurants:', error);
+        setRestaurantsError(error.message);
+        setRestaurants([]);
+      } else if (data) {
+        const mapped: RestaurantCard[] = (data as RestaurantRow[]).map((row) => ({
+          id: row.id,
+          name: row.name,
+          cuisine: row.cuisine ?? 'Unknown',
+          rating: row.rating !== null ? String(row.rating) : '0.0',
+          image: row.image_url ? { uri: row.image_url } : getFallbackImage(row.cuisine),
+        }));
+        setRestaurants(mapped);
+      }
+
+      setLoadingRestaurants(false);
+    };
+
+    fetchRestaurants();
+  }, []);
+
+  // Get personalized restaurant recommendations based on user preferences
+  const getPersonalizedRestaurants = (allRestaurants: RestaurantCard[]) => {
     // If user has preferences, prioritize their favorite cuisines
     if (user?.preferences?.favoriteCuisines && user.preferences.favoriteCuisines.length > 0) {
       const favoriteCuisines = user.preferences.favoriteCuisines;
-      
+
       // Sort restaurants: favorite cuisines first, then others
-      return allRestaurants.sort((a, b) => {
+      return [...allRestaurants].sort((a, b) => {
         const aIsFavorite = favoriteCuisines.includes(a.cuisine);
         const bIsFavorite = favoriteCuisines.includes(b.cuisine);
-        
+
         if (aIsFavorite && !bIsFavorite) return -1;
         if (!aIsFavorite && bIsFavorite) return 1;
-        
+
         // If both are favorites or both aren't, sort by rating
         return parseFloat(b.rating) - parseFloat(a.rating);
       });
     }
-    
+
     // Default: sort by rating
-    return allRestaurants.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+    return [...allRestaurants].sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
   };
 
-  const restaurants = getPersonalizedRestaurants();
+  const personalizedRestaurants = getPersonalizedRestaurants(restaurants);
 
-  const currentRestaurant = restaurants[currentIndex];
+  // Loading state
+  if (loadingRestaurants) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#e65332" />
+        <Text style={{ marginTop: 10 }}>Loading restaurants...</Text>
+      </View>
+    );
+  }
+
+  // Error state
+  if (restaurantsError) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+        ]}>
+        <Text style={{ textAlign: 'center', marginBottom: 8 }}>Failed to load restaurants.</Text>
+        <Text style={{ textAlign: 'center', color: '#888' }}>{restaurantsError}</Text>
+      </View>
+    );
+  }
+
+  // If there are no restaurants at all, show a simple fallback
+  if (!personalizedRestaurants || personalizedRestaurants.length === 0) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text>No restaurants available yet.</Text>
+      </View>
+    );
+  }
+
+  // ✅ Loop the restaurants: wrap index using modulo
+  const currentRestaurant =
+    personalizedRestaurants[currentIndex % personalizedRestaurants.length];
 
   const handleNextCard = () => {
     // Reset card position instantly after the animation
     translateX.setValue(0);
     opacity.setValue(1);
-    setCurrentIndex((prev) => prev + 1);
+    // Move to next and loop back to start when hitting the end
+    setCurrentIndex((prev) => (prev + 1) % personalizedRestaurants.length);
   };
-  
+
   const animateSwipe = (direction: 'left' | 'right') => {
     const toValue = direction === 'left' ? -400 : 400; // swipe distance in px
-  
+
     Animated.parallel([
       Animated.timing(translateX, {
         toValue,
@@ -117,17 +221,6 @@ export default function DiscoverScreen() {
       }),
     ]).start(() => handleNextCard());
   };
-  
-
-
-
-  if (!currentRestaurant) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text>No more restaurants!</Text>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -174,17 +267,18 @@ export default function DiscoverScreen() {
         <Text style={styles.cardSubtitle}>
           {currentRestaurant.cuisine} | Rating {currentRestaurant.rating}
         </Text>
-        
+
         {/* Dietary Restriction Badges */}
-        {user?.preferences?.dietaryRestrictions && user.preferences.dietaryRestrictions.length > 0 && (
-          <View style={styles.badgesContainer}>
-            {user.preferences.dietaryRestrictions.map((restriction) => (
-              <View key={restriction} style={styles.badge}>
-                <Text style={styles.badgeText}>{restriction}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+        {user?.preferences?.dietaryRestrictions &&
+          user.preferences.dietaryRestrictions.length > 0 && (
+            <View style={styles.badgesContainer}>
+              {user.preferences.dietaryRestrictions.map((restriction) => (
+                <View key={restriction} style={styles.badge}>
+                  <Text style={styles.badgeText}>{restriction}</Text>
+                </View>
+              ))}
+            </View>
+          )}
       </Animated.View>
 
       {/* Tinder-style Buttons */}
@@ -199,9 +293,13 @@ export default function DiscoverScreen() {
         {/* Star (Blue) */}
         <TouchableOpacity
           style={[styles.circleButton, { borderColor: '#007AFF' }]}
-          onPress={() => {
-            toggleSave(currentRestaurant);
-            toggleFavorite(currentRestaurant.id);
+          onPress={async () => {
+            // Ensure it is saved first
+            if (!isSaved(currentRestaurant.id)) {
+              await toggleSave(currentRestaurant);
+            }
+            // Toggle favorite flag
+            await toggleFavorite(currentRestaurant.id);
             animateSwipe('right');
           }}>
           <Ionicons name="star" size={30} color="#007AFF" />
@@ -210,8 +308,11 @@ export default function DiscoverScreen() {
         {/* Save (Green Heart) */}
         <TouchableOpacity
           style={[styles.circleButton, { borderColor: '#34C759' }]}
-          onPress={() => {
-            toggleSave(currentRestaurant);
+          onPress={async () => {
+            // Only save if not already saved – no unsave
+            if (!isSaved(currentRestaurant.id)) {
+              await toggleSave(currentRestaurant);
+            }
             animateSwipe('right');
           }}>
           <Ionicons name="heart" size={30} color="#34C759" />
