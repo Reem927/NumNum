@@ -9,8 +9,10 @@ export default function CreateScreen() {
 
   const handleSelect = (type: 'review' | 'thread') => {
     setSelectedType(type);
-    // TODO: Navigate to the appropriate creation screen
-    // router.push(`/create/${type}`);
+    router.push({
+      pathname: '/create-post',
+      params: { type },
+    });
   };
 
   return (

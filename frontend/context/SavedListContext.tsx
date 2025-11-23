@@ -88,11 +88,20 @@ export const SavedListProvider = ({ children }: { children: ReactNode }) => {
 
       setLoading(true);
 
+      // Get the actual authenticated user from Supabase to ensure we have a valid UUID
+      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+      
+      if (!supabaseUser) {
+        setSaved([]);
+        setLoading(false);
+        return;
+      }
+
       // Join saved_restaurants with restaurants table
       const { data, error } = await supabase
         .from('saved_restaurants')
         .select('restaurant_id, is_favorited, added_at, restaurants (*)')
-        .eq('user_id', user.id)
+        .eq('user_id', supabaseUser.id)
         .order('added_at', { ascending: false });
 
       if (error) {
@@ -142,6 +151,14 @@ export const SavedListProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    // Get the actual authenticated user from Supabase
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    
+    if (!supabaseUser) {
+      console.warn('User must be authenticated with Supabase.');
+      return;
+    }
+
     const restaurantId = restaurant.id;
 
     // If already saved → delete from Supabase
@@ -151,7 +168,7 @@ export const SavedListProvider = ({ children }: { children: ReactNode }) => {
       const { error } = await supabase
         .from('saved_restaurants')
         .delete()
-        .eq('user_id', user.id)
+        .eq('user_id', supabaseUser.id)
         .eq('restaurant_id', restaurantId);
 
       if (error) {
@@ -167,7 +184,7 @@ export const SavedListProvider = ({ children }: { children: ReactNode }) => {
     const { data, error } = await supabase
       .from('saved_restaurants')
       .insert({
-        user_id: user.id,
+        user_id: supabaseUser.id,
         restaurant_id: restaurantId,
         is_favorited: false,
       })
@@ -200,6 +217,14 @@ export const SavedListProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    // Get the actual authenticated user from Supabase
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    
+    if (!supabaseUser) {
+      console.warn('User must be authenticated with Supabase.');
+      return;
+    }
+
     const existing = saved.find((r) => r.id === restaurantId);
     if (!existing) {
       console.warn('Cannot favorite a restaurant that is not in saved list.');
@@ -211,7 +236,7 @@ export const SavedListProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase
       .from('saved_restaurants')
       .update({ is_favorited: newFavoriteValue })
-      .eq('user_id', user.id)
+      .eq('user_id', supabaseUser.id)
       .eq('restaurant_id', restaurantId);
 
     if (error) {

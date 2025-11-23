@@ -7,9 +7,12 @@ import UserOptionsModal from '@/components/UserOptionsModal';
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/context/AuthContext';
 import { useSavedList } from '@/context/SavedListContext';
+import { supabase } from '@/lib/supabase';
+import { apiService } from '@/services/api';
+import { User } from '@/types/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function UserProfileScreen() {
@@ -25,29 +28,99 @@ export default function UserProfileScreen() {
   const [reportVisible, setReportVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
-
-  // TODO: Fetch user data from API using userId
-  // For now, using mock data
-  const user = {
-    id: userId,
-    username: 'otheruser',
-    displayName: 'Other User',
-    profileImage: undefined,
-    bannerImage: undefined,
-    bio: 'This is another user\'s profile',
-    reviewCount: 15,
-    followersCount: 500,
-    followingCount: 200,
-    rank: 50,
-    isPublic: false, // Mock: false = private account
-    followStatus: 'not_following' as 'not_following' | 'following' | 'requested',
-    preferences: {
-      favoriteCuisines: ['Italian', 'Japanese'],
-    },
-  };
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [followStatus, setFollowStatus] = useState<'not_following' | 'following' | 'requested'>('not_following');
 
   const isOwnProfile = currentUser?.id === userId;
-  const [followStatus, setFollowStatus] = useState<'not_following' | 'following' | 'requested'>(user.followStatus || 'not_following');
+
+  // Fetch user profile data
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!userId) return;
+
+      setLoading(true);
+      try {
+        // Fetch profile from profiles table
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (profileError || !profile) {
+          console.error('Error fetching user profile:', profileError);
+          setLoading(false);
+          return;
+        }
+
+        // Fetch followers and following counts
+        const { count: followersCount } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('followed_id', userId)
+          .eq('status', 'accepted');
+
+        const { count: followingCount } = await supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('follower_id', userId)
+          .eq('status', 'accepted');
+
+        // Check follow status if not own profile
+        let followStatus: 'not_following' | 'following' | 'requested' = 'not_following';
+        if (!isOwnProfile && currentUser) {
+          const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+          if (supabaseUser) {
+            const { data: followData } = await supabase
+              .from('follows')
+              .select('status')
+              .eq('follower_id', supabaseUser.id)
+              .eq('followed_id', userId)
+              .single();
+
+            if (followData) {
+              followStatus = followData.status === 'accepted' ? 'following' : 'requested';
+            }
+          }
+        }
+
+        // Calculate rank based on review count
+        const { count: rankCount } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .gt('review_count', profile.review_count || 0);
+
+        const userData: User = {
+          id: profile.id,
+          email: '',
+          username: profile.username || '',
+          displayName: profile.display_name || profile.username || '',
+          avatar: profile.avatar_url || undefined,
+          profileImage: profile.avatar_url || undefined,
+          bannerImage: profile.banner_url || undefined,
+          bio: profile.bio || '',
+          isPublic: profile.is_public ?? true,
+          hasCompletedOnboarding: profile.has_completed_onboarding ?? false,
+          reviewCount: profile.review_count || 0,
+          followersCount: followersCount || 0,
+          followingCount: followingCount || 0,
+          followStatus,
+          preferences: profile.preferences || { favoriteCuisines: [], dietaryRestrictions: [] },
+          createdAt: profile.created_at || new Date().toISOString(),
+        };
+
+        setUser(userData);
+        setFollowStatus(followStatus);
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [userId, isOwnProfile, currentUser]);
 
   const handleFollowersPress = () => {
     setFollowersFollowingTab('followers');
@@ -64,20 +137,40 @@ export default function UserProfileScreen() {
   };
 
   const handleFollow = async () => {
-    if (user.isPublic) {
-      // Public account - just follow
-      setFollowStatus('following');
-      // TODO: API call to follow
-    } else {
-      // Private account - send request
-      setFollowStatus('requested');
-      // TODO: API call to send follow request
+    if (!user) return;
+
+    try {
+      if (user.isPublic) {
+        // Public account - just follow
+        const response = await apiService.followUser(user.id);
+        if (response.success) {
+          setFollowStatus('following');
+          setUser({ ...user, followersCount: (user.followersCount || 0) + 1 });
+        }
+      } else {
+        // Private account - send request
+        const response = await apiService.sendFollowRequest(user.id);
+        if (response.success) {
+          setFollowStatus('requested');
+        }
+      }
+    } catch (error) {
+      console.error('Error following user:', error);
     }
   };
 
   const handleUnfollow = async () => {
-    setFollowStatus('not_following');
-    // TODO: API call to unfollow
+    if (!user) return;
+
+    try {
+      const response = await apiService.unfollowUser(user.id);
+      if (response.success) {
+        setFollowStatus('not_following');
+        setUser({ ...user, followersCount: Math.max((user.followersCount || 0) - 1, 0) });
+      }
+    } catch (error) {
+      console.error('Error unfollowing user:', error);
+    }
   };
 
   const handleMessage = () => {
@@ -191,6 +284,26 @@ export default function UserProfileScreen() {
       )}
     </View>
   );
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!user) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>User not found</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -740,6 +853,16 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 12,
+    color: '#666',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    fontSize: 16,
     color: '#666',
   },
 });
