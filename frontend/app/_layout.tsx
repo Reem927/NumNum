@@ -1,3 +1,4 @@
+// frontend/app/_layout.tsx
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -5,6 +6,8 @@ import 'react-native-reanimated';
 
 import { AuthProvider } from '@/context/AuthContext';
 import { SavedListProvider } from '@/context/SavedListContext';
+import { PostProvider } from '@/context/PostContext';
+import { DiscoverFilterProvider } from '@/context/DiscoverFilterContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
@@ -17,19 +20,32 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
-        <SavedListProvider> 
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="auth" options={{ headerShown: false }} />
-            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-            <Stack.Screen name="Filters" options={{ presentation: 'modal', headerShown: false}} />
-            <Stack.Screen name="SavedList" options={{ headerShown: false }} />
-            <Stack.Screen name="Search" options={{ presentation: 'fullScreenModal', animation: "slide_from_bottom", headerShown: false, gestureEnabled: true}} />
-            <Stack.Screen name="user/[userId]" options={{ headerShown: false }} />
-          </Stack>
-          <StatusBar style="auto" />
+        <SavedListProvider>
+          <PostProvider>
+            {/* 🔴 NEW: wrap navigation with DiscoverFilterProvider */}
+            <DiscoverFilterProvider>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                }}
+              >
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="onboarding/Welcome" options={{ headerShown: false }} />
+                <Stack.Screen name="onboarding/Preferences" options={{ headerShown: false }} />
+                <Stack.Screen name="auth/Login" options={{ headerShown: false }} />
+                <Stack.Screen name="auth/Signup" options={{ headerShown: false }} />
+                <Stack.Screen name="Filters" options={{ headerShown: false, presentation: 'modal' }} />
+                <Stack.Screen name="SavedList" options={{ headerShown: false }} />
+                <Stack.Screen name="user/[userId]" options={{ headerShown: false }} />
+                <Stack.Screen name="post/[postId]" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="create-post"
+                  options={{ headerShown: false, presentation: 'modal' }}
+                />
+              </Stack>
+              <StatusBar style="auto" />
+            </DiscoverFilterProvider>
+          </PostProvider>
         </SavedListProvider>
       </AuthProvider>
     </ThemeProvider>
