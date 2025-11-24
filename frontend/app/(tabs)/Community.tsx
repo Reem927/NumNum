@@ -7,16 +7,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View, ActivityIndicator, Text, Image } from 'react-native';
 import { Post } from '@/types/posts';
 
+const CUISINES = ['Kuwaiti', 'Indian', 'British', 'Lebanese', 'Japanese', 'Chinese', 'Italian', 'Korean', 'French', 'Mexican'];
+
 export default function CommunityScreen() {
   const [activeTab, setActiveTab] = useState<'For You' | 'Following'>('For You');
   const { posts, loading, error, toggleLike, refreshPosts, isLiked } = usePosts();
   const { user } = useAuth();
   const router = useRouter();
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   useEffect(() => {
-    refreshPosts();
-  }, [refreshPosts]);
+    refreshPosts({ cuisine: activeCategory || undefined });
+  }, [refreshPosts, activeCategory]);
 
   // Check liked status for all posts when they load
   useEffect(() => {
@@ -222,9 +225,36 @@ export default function CommunityScreen() {
 
           <View style={styles.categorySection}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-              {['Japanese', 'Italian', 'Indian', 'Chinese'].map((category, index) => (
-                <TouchableOpacity key={index} style={styles.categoryButton}>
-                  <ThemedText style={styles.categoryText}>{category}</ThemedText>
+              <TouchableOpacity 
+                key="all"
+                style={[
+                  styles.categoryButton,
+                  activeCategory === null && styles.categoryButtonActive
+                ]}
+                onPress={() => setActiveCategory(null)}
+              >
+                <ThemedText style={[
+                  styles.categoryText,
+                  activeCategory === null && styles.categoryTextActive
+                ]}>
+                  All
+                </ThemedText>
+              </TouchableOpacity>
+              {CUISINES.map((category, index) => (
+                <TouchableOpacity 
+                  key={index} 
+                  style={[
+                    styles.categoryButton,
+                    activeCategory === category && styles.categoryButtonActive
+                  ]}
+                  onPress={() => setActiveCategory(category)}
+                >
+                  <ThemedText style={[
+                    styles.categoryText,
+                    activeCategory === category && styles.categoryTextActive
+                  ]}>
+                    {category}
+                  </ThemedText>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -369,9 +399,16 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginRight: 8,
   },
+  categoryButtonActive: {
+    backgroundColor: '#e65332',
+  },
   categoryText: {
     fontSize: 12,
     color: '#000',
+  },
+  categoryTextActive: {
+    color: '#fff',
+    fontWeight: '600',
   },
   feed: {
     padding: 15,

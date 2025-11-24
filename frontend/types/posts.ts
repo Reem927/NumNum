@@ -9,6 +9,9 @@ export interface Post {
   restaurant_id?: string; // Only for review posts
   rating?: number; // Only for review posts
   image_urls?: string[]; // Array of image URLs
+  cuisine?: string; // Cuisine category for threads
+  attached_review_id?: string; // ID of review attached to thread
+  attachedReview?: Post; // The actual review object (for display)
   created_at: string;
   updated_at?: string;
   likes_count: number;
@@ -32,7 +35,7 @@ export interface Post {
 
 export interface Comment {
   id: string;
-  post_id: string;
+  thread_id: string;
   user_id: string;
   parent_id?: string; // For nested replies
   content: string;
@@ -55,7 +58,7 @@ export interface Comment {
 export interface Like {
   id: string;
   user_id: string;
-  post_id?: string;
+  thread_id?: string;
   comment_id?: string;
   created_at: string;
 }
@@ -66,11 +69,14 @@ export interface CreatePostData {
   restaurant_id?: string;
   rating?: number;
   image_urls?: string[];
+  cuisine?: string; // Cuisine category for threads
+  attached_review_id?: string; // ID of review to attach
 }
 
 export interface CreateCommentData {
-  post_id: string;
+  thread_id: string;
   content: string;
   parent_id?: string; // For replies
 }
+
 

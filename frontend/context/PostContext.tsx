@@ -48,6 +48,7 @@ export const PostProvider = ({ children }: { children: ReactNode }) => {
   const refreshPosts = useCallback(async (options?: { 
     type?: PostType; 
     userId?: string; 
+    cuisine?: string;
     limit?: number;
   }) => {
     setLoading(true);
@@ -57,6 +58,7 @@ export const PostProvider = ({ children }: { children: ReactNode }) => {
       const response = await apiService.getPosts({
         type: options?.type,
         userId: options?.userId,
+        cuisine: options?.cuisine,
         limit: options?.limit || 50,
       });
 
@@ -245,10 +247,10 @@ export const PostProvider = ({ children }: { children: ReactNode }) => {
       const response = await apiService.createComment(commentData);
       
       if (response.success && response.data) {
-        // Update post comments count
+        // Update thread comments count
         setPosts((prev) =>
           prev.map((post) =>
-            post.id === commentData.post_id
+            post.id === commentData.thread_id
               ? { ...post, comments_count: post.comments_count + 1 }
               : post
           )
@@ -283,15 +285,15 @@ export const PostProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Delete comment
-  const deleteComment = async (commentId: string, postId: string): Promise<boolean> => {
+  const deleteComment = async (commentId: string, threadId: string): Promise<boolean> => {
     try {
       const response = await apiService.deleteComment(commentId);
       
       if (response.success) {
-        // Update post comments count
+        // Update thread comments count
         setPosts((prev) =>
           prev.map((post) =>
-            post.id === postId
+            post.id === threadId
               ? { ...post, comments_count: Math.max(post.comments_count - 1, 0) }
               : post
           )

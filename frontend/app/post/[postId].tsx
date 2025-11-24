@@ -20,6 +20,8 @@ import { Post, Comment } from '@/types/posts';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
+const MAX_COMMENT_LENGTH = 200;
+
 export default function PostDetailScreen() {
   const router = useRouter();
   const { postId } = useLocalSearchParams<{ postId: string }>();
@@ -114,7 +116,7 @@ export default function PostDetailScreen() {
 
     try {
       const newComment = await createComment({
-        post_id: postId,
+        thread_id: postId,
         content: commentText.trim(),
         parent_id: replyingTo || undefined,
       });
@@ -150,7 +152,7 @@ export default function PostDetailScreen() {
 
     try {
       const newReply = await createComment({
-        post_id: postId,
+        thread_id: postId,
         content: text.trim(),
         parent_id: parentId,
       });
@@ -240,16 +242,33 @@ export default function PostDetailScreen() {
 
         {showReplyInput && (
           <View style={styles.replyInputContainer}>
-            <TextInput
-              style={styles.replyInput}
-              placeholder="Write a reply..."
-              placeholderTextColor="#999"
-              multiline
-              value={replyText[comment.id] || ''}
-              onChangeText={(text) => {
-                setReplyText({ ...replyText, [comment.id]: text });
-              }}
-            />
+            <View style={styles.replyInputWrapper}>
+              <View style={styles.charCountContainer}>
+                <Text style={[
+                  styles.charCount,
+                  (replyText[comment.id]?.length || 0) === MAX_COMMENT_LENGTH && styles.charCountError
+                ]}>
+                  {replyText[comment.id]?.length || 0}/{MAX_COMMENT_LENGTH} characters
+                  {(replyText[comment.id]?.length || 0) === MAX_COMMENT_LENGTH && ' - You\'re at the character limit'}
+                </Text>
+              </View>
+              <TextInput
+                style={[
+                  styles.replyInput,
+                  (replyText[comment.id]?.length || 0) === MAX_COMMENT_LENGTH && styles.commentInputError
+                ]}
+                placeholder="Write a reply..."
+                placeholderTextColor="#999"
+                multiline
+                maxLength={MAX_COMMENT_LENGTH}
+                value={replyText[comment.id] || ''}
+                onChangeText={(text) => {
+                  if (text.length <= MAX_COMMENT_LENGTH) {
+                    setReplyText({ ...replyText, [comment.id]: text });
+                  }
+                }}
+              />
+            </View>
             <TouchableOpacity
               style={styles.sendReplyButton}
               onPress={() => handleSubmitReply(comment.id)}
@@ -394,7 +413,7 @@ export default function PostDetailScreen() {
 
           {comments.length === 0 ? (
             <View style={styles.noCommentsContainer}>
-              <IconSymbol name="bubble.left.bubble.right" size={48} color="#ccc" />
+              <IconSymbol name="bubble.left.and.bubble.right" size={48} color="#ccc" />
               <ThemedText style={styles.noCommentsText}>No comments yet</ThemedText>
               <ThemedText style={styles.noCommentsSubtext}>
                 Be the first to comment!
@@ -408,14 +427,33 @@ export default function PostDetailScreen() {
 
       {/* Comment Input */}
       <View style={styles.commentInputContainer}>
-        <TextInput
-          style={styles.commentInput}
-          placeholder="Write a comment..."
-          placeholderTextColor="#999"
-          multiline
-          value={commentText}
-          onChangeText={setCommentText}
-        />
+        <View style={styles.commentInputWrapper}>
+          <View style={styles.charCountContainer}>
+            <Text style={[
+              styles.charCount,
+              commentText.length === MAX_COMMENT_LENGTH && styles.charCountError
+            ]}>
+              {commentText.length}/{MAX_COMMENT_LENGTH} characters
+              {commentText.length === MAX_COMMENT_LENGTH && ' - You\'re at the character limit'}
+            </Text>
+          </View>
+          <TextInput
+            style={[
+              styles.commentInput,
+              commentText.length === MAX_COMMENT_LENGTH && styles.commentInputError
+            ]}
+            placeholder="Write a comment..."
+            placeholderTextColor="#999"
+            multiline
+            maxLength={MAX_COMMENT_LENGTH}
+            value={commentText}
+            onChangeText={(text) => {
+              if (text.length <= MAX_COMMENT_LENGTH) {
+                setCommentText(text);
+              }
+            }}
+          />
+        </View>
         <TouchableOpacity
           style={[styles.sendButton, !commentText.trim() && styles.sendButtonDisabled]}
           onPress={handleSubmitComment}
@@ -666,15 +704,17 @@ const styles = StyleSheet.create({
   },
   replyInputContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     gap: 8,
     marginTop: 8,
     padding: 8,
     backgroundColor: '#f9f9f9',
     borderRadius: 8,
   },
-  replyInput: {
+  replyInputWrapper: {
     flex: 1,
+  },
+  replyInput: {
     minHeight: 40,
     maxHeight: 100,
     padding: 8,
@@ -691,7 +731,7 @@ const styles = StyleSheet.create({
   },
   commentInputContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     padding: 12,
     paddingBottom: Platform.OS === 'ios' ? 30 : 12,
     borderTopWidth: 1,
@@ -699,8 +739,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     gap: 8,
   },
-  commentInput: {
+  commentInputWrapper: {
     flex: 1,
+  },
+  commentInput: {
     minHeight: 40,
     maxHeight: 100,
     padding: 12,
@@ -708,6 +750,23 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     fontSize: 15,
     color: '#000',
+  },
+  commentInputError: {
+    borderColor: '#FF0000',
+    borderWidth: 1,
+    backgroundColor: '#fff5f5',
+  },
+  charCountContainer: {
+    marginBottom: 4,
+    alignItems: 'flex-start',
+  },
+  charCount: {
+    fontSize: 12,
+    color: '#999',
+  },
+  charCountError: {
+    color: '#FF0000',
+    fontWeight: '600',
   },
   sendButton: {
     width: 40,
@@ -721,4 +780,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0e0e0',
   },
 });
+
 

@@ -483,23 +483,20 @@ class ApiService {
       };
     }
 
-    console.log('Creating post with user_id:', user.id);
-    console.log('Post data:', { 
-      type: postData.type, 
+    console.log('Creating thread with user_id:', user.id);
+    console.log('Thread data:', { 
       content: postData.content?.substring(0, 50) + '...',
-      restaurant_id: postData.restaurant_id,
-      rating: postData.rating 
+      cuisine: postData.cuisine,
     });
 
-    // Insert post without joins (to avoid foreign key relationship issues)
-    const { data: postData_result, error } = await supabase
-      .from('posts')
+    // Insert thread (threads table doesn't have type, restaurant_id, or rating)
+    const { data: threadData_result, error } = await supabase
+      .from('threads')
       .insert({
         user_id: user.id,
-        type: postData.type,
         content: postData.content,
-        restaurant_id: postData.restaurant_id || null,
-        rating: postData.rating || null,
+        cuisine: postData.cuisine || null,
+        attached_review_id: postData.attached_review_id || null,
         image_urls: postData.image_urls || [],
         likes_count: 0,
         comments_count: 0,
@@ -508,16 +505,16 @@ class ApiService {
       .single();
 
     if (error) {
-      console.error('Error creating post:', error);
+      console.error('Error creating thread:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
       return {
         data: undefined,
         success: false,
-        message: error.message || 'Failed to create post',
+        message: error.message || 'Failed to create thread',
       };
     }
 
-    console.log('Post created successfully:', postData_result.id);
+    console.log('Thread created successfully:', threadData_result.id);
 
     // Fetch profile separately (since there's no direct FK relationship)
     const { data: profile } = await supabase
@@ -526,27 +523,18 @@ class ApiService {
       .eq('id', user.id)
       .single();
 
-    // Fetch restaurant separately if restaurant_id exists
-    let restaurant = null;
-    if (postData_result.restaurant_id) {
-      const { data: restaurantData } = await supabase
-        .from('restaurants')
-        .select('id, name, cuisine')
-        .eq('id', postData_result.restaurant_id)
-        .single();
-      restaurant = restaurantData;
-    }
-
+    // Map thread to Post interface (threads are always type 'thread')
     const post: Post = {
-      ...postData_result,
+      ...threadData_result,
+      type: 'thread',
       user: profile || undefined,
-      restaurant: restaurant || undefined,
+      restaurant: undefined, // Threads don't have restaurants
     };
 
     return {
       data: post,
       success: true,
-      message: 'Post created successfully',
+      message: 'Thread created successfully',
     };
   }
 
@@ -554,42 +542,33 @@ class ApiService {
     type?: PostType;
     userId?: string;
     restaurantId?: string;
+    cuisine?: string;
     limit?: number;
     offset?: number;
   }): Promise<ApiResponse<Post[]>> {
-    // Explicitly select columns to avoid schema cache issues with *
+    // Fetch threads (threads table doesn't have type, restaurant_id, or rating)
     let query = supabase
-      .from('posts')
+      .from('threads')
       .select(`
         id,
         user_id,
-        type,
         content,
-        restaurant_id,
-        rating,
+        cuisine,
+        attached_review_id,
         image_urls,
         likes_count,
         comments_count,
         created_at,
-        updated_at,
-        restaurants:restaurant_id (
-          id,
-          name,
-          cuisine
-        )
+        updated_at
       `)
       .order('created_at', { ascending: false });
-
-    if (options?.type) {
-      query = query.eq('type', options.type);
-    }
 
     if (options?.userId) {
       query = query.eq('user_id', options.userId);
     }
 
-    if (options?.restaurantId) {
-      query = query.eq('restaurant_id', options.restaurantId);
+    if (options?.cuisine) {
+      query = query.eq('cuisine', options.cuisine);
     }
 
     if (options?.limit) {
@@ -606,7 +585,7 @@ class ApiService {
       return {
         data: undefined,
         success: false,
-        message: error.message || 'Failed to fetch posts',
+        message: error.message || 'Failed to fetch threads',
       };
     }
 
@@ -614,12 +593,12 @@ class ApiService {
       return {
         data: [],
         success: true,
-        message: 'Posts fetched successfully',
+        message: 'Threads fetched successfully',
       };
     }
 
     // Get unique user IDs
-    const userIds = [...new Set(data.map((post: any) => post.user_id))];
+    const userIds = [...new Set(data.map((thread: any) => thread.user_id))];
 
     // Fetch all profiles in one query
     const { data: profiles } = await supabase
@@ -630,41 +609,36 @@ class ApiService {
     // Create a map for quick lookup
     const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
 
-    // Map posts with profiles and restaurants
+    // Map threads to Post interface (all threads are type 'thread')
     const posts: Post[] = data.map((item: any) => ({
       ...item,
+      type: 'thread' as PostType,
       user: profileMap.get(item.user_id) || undefined,
-      restaurant: Array.isArray(item.restaurants) ? item.restaurants[0] : item.restaurants,
+      restaurant: undefined, // Threads don't have restaurants
     }));
 
     return {
       data: posts,
       success: true,
-      message: 'Posts fetched successfully',
+      message: 'Threads fetched successfully',
     };
   }
 
   async getPost(postId: string): Promise<ApiResponse<Post>> {
-    // Explicitly select columns to avoid schema cache issues with *
+    // Fetch thread from threads table
     const { data, error } = await supabase
-      .from('posts')
+      .from('threads')
       .select(`
         id,
         user_id,
-        type,
         content,
-        restaurant_id,
-        rating,
+        cuisine,
+        attached_review_id,
         image_urls,
         likes_count,
         comments_count,
         created_at,
-        updated_at,
-        restaurants:restaurant_id (
-          id,
-          name,
-          cuisine
-        )
+        updated_at
       `)
       .eq('id', postId)
       .single();
@@ -673,7 +647,7 @@ class ApiService {
       return {
         data: undefined,
         success: false,
-        message: error.message || 'Failed to fetch post',
+        message: error.message || 'Failed to fetch thread',
       };
     }
 
@@ -684,16 +658,68 @@ class ApiService {
       .eq('id', data.user_id)
       .single();
 
+    // Fetch attached review if it exists (reviews are in posts table)
+    let attachedReview: Post | undefined = undefined;
+    if (data.attached_review_id) {
+      const { data: reviewData } = await supabase
+        .from('posts')
+        .select(`
+          id,
+          user_id,
+          type,
+          content,
+          restaurant_id,
+          rating,
+          image_urls,
+          created_at,
+          updated_at,
+          likes_count,
+          comments_count
+        `)
+        .eq('id', data.attached_review_id)
+        .eq('type', 'review')
+        .single();
+
+      if (reviewData) {
+        // Fetch review author profile
+        const { data: reviewProfile } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url')
+          .eq('id', reviewData.user_id)
+          .single();
+
+        // Fetch restaurant if exists
+        let restaurant = null;
+        if (reviewData.restaurant_id) {
+          const { data: restaurantData } = await supabase
+            .from('restaurants')
+            .select('id, name, cuisine')
+            .eq('id', reviewData.restaurant_id)
+            .single();
+          restaurant = restaurantData;
+        }
+
+        attachedReview = {
+          ...reviewData,
+          user: reviewProfile || undefined,
+          restaurant: restaurant || undefined,
+        };
+      }
+    }
+
+    // Map thread to Post interface
     const post: Post = {
       ...data,
+      type: 'thread' as PostType,
       user: profile || undefined,
-      restaurant: Array.isArray(data.restaurants) ? data.restaurants[0] : data.restaurants,
+      restaurant: undefined, // Threads don't have restaurants
+      attachedReview: attachedReview,
     };
 
     return {
       data: post,
       success: true,
-      message: 'Post fetched successfully',
+      message: 'Thread fetched successfully',
     };
   }
 
@@ -708,18 +734,18 @@ class ApiService {
       };
     }
 
-    // Check if user owns the post
-    const { data: existingPost } = await supabase
-      .from('posts')
+    // Check if user owns the thread
+    const { data: existingThread } = await supabase
+      .from('threads')
       .select('user_id')
       .eq('id', postId)
       .single();
 
-    if (!existingPost || existingPost.user_id !== user.id) {
+    if (!existingThread || existingThread.user_id !== user.id) {
       return {
         data: undefined,
         success: false,
-        message: 'You can only edit your own posts',
+        message: 'You can only edit your own threads',
       };
     }
 
@@ -728,30 +754,21 @@ class ApiService {
     };
 
     if (updates.content !== undefined) updateData.content = updates.content;
-    if (updates.rating !== undefined) updateData.rating = updates.rating;
     if (updates.image_urls !== undefined) updateData.image_urls = updates.image_urls;
 
     const { data, error } = await supabase
-      .from('posts')
+      .from('threads')
       .update(updateData)
       .eq('id', postId)
       .select(`
         id,
         user_id,
-        type,
         content,
-        restaurant_id,
-        rating,
         image_urls,
         likes_count,
         comments_count,
         created_at,
-        updated_at,
-        restaurants:restaurant_id (
-          id,
-          name,
-          cuisine
-        )
+        updated_at
       `)
       .single();
 
@@ -759,7 +776,7 @@ class ApiService {
       return {
         data: undefined,
         success: false,
-        message: error.message || 'Failed to update post',
+        message: error.message || 'Failed to update thread',
       };
     }
 
@@ -770,16 +787,18 @@ class ApiService {
       .eq('id', data.user_id)
       .single();
 
+    // Map thread to Post interface
     const post: Post = {
       ...data,
+      type: 'thread' as PostType,
       user: profile || undefined,
-      restaurant: Array.isArray(data.restaurants) ? data.restaurants[0] : data.restaurants,
+      restaurant: undefined, // Threads don't have restaurants
     };
 
     return {
       data: post,
       success: true,
-      message: 'Post updated successfully',
+      message: 'Thread updated successfully',
     };
   }
 
@@ -795,22 +814,22 @@ class ApiService {
     }
 
     // Check ownership
-    const { data: existingPost } = await supabase
-      .from('posts')
+    const { data: existingThread } = await supabase
+      .from('threads')
       .select('user_id')
       .eq('id', postId)
       .single();
 
-    if (!existingPost || existingPost.user_id !== user.id) {
+    if (!existingThread || existingThread.user_id !== user.id) {
       return {
         data: undefined,
         success: false,
-        message: 'You can only delete your own posts',
+        message: 'You can only delete your own threads',
       };
     }
 
     const { error } = await supabase
-      .from('posts')
+      .from('threads')
       .delete()
       .eq('id', postId);
 
@@ -818,14 +837,14 @@ class ApiService {
       return {
         data: undefined,
         success: false,
-        message: error.message || 'Failed to delete post',
+        message: error.message || 'Failed to delete thread',
       };
     }
 
     return {
       data: undefined,
       success: true,
-      message: 'Post deleted successfully',
+      message: 'Thread deleted successfully',
     };
   }
 
@@ -846,7 +865,7 @@ class ApiService {
     const { data: newComment, error: commentError } = await supabase
       .from('comments')
       .insert({
-        post_id: commentData.post_id,
+        thread_id: commentData.thread_id,
         user_id: user.id,
         parent_id: commentData.parent_id || null,
         content: commentData.content,
@@ -870,20 +889,20 @@ class ApiService {
       .eq('id', user.id)
       .single();
 
-    // Update post comments count via RPC function
-    await supabase.rpc('increment_post_comments', { post_id: commentData.post_id }).catch(async () => {
+    // Update thread comments count via RPC function
+    await supabase.rpc('increment_thread_comments', { thread_id: commentData.thread_id }).catch(async () => {
       // Fallback: fetch current count and increment
-      const { data: post } = await supabase
-        .from('posts')
+      const { data: thread } = await supabase
+        .from('threads')
         .select('comments_count')
-        .eq('id', commentData.post_id)
+        .eq('id', commentData.thread_id)
         .single();
       
-      if (post) {
+      if (thread) {
         await supabase
-          .from('posts')
-          .update({ comments_count: (post.comments_count || 0) + 1 })
-          .eq('id', commentData.post_id);
+          .from('threads')
+          .update({ comments_count: (thread.comments_count || 0) + 1 })
+          .eq('id', commentData.thread_id);
       }
     });
 
@@ -904,7 +923,7 @@ class ApiService {
     const { data, error } = await supabase
       .from('comments')
       .select('*')
-      .eq('post_id', postId)
+      .eq('thread_id', postId)
       .is('parent_id', null) // Only top-level comments
       .order('created_at', { ascending: false });
 
@@ -928,7 +947,7 @@ class ApiService {
     const { data: allReplies } = await supabase
       .from('comments')
       .select('id, user_id, parent_id, created_at')
-      .eq('post_id', postId)
+      .eq('thread_id', postId)
       .not('parent_id', 'is', null)
       .order('created_at', { ascending: true });
 
@@ -1065,7 +1084,7 @@ class ApiService {
     // Check ownership
     const { data: existing } = await supabase
       .from('comments')
-      .select('user_id, post_id')
+      .select('user_id, thread_id')
       .eq('id', commentId)
       .single();
 
@@ -1090,20 +1109,20 @@ class ApiService {
       };
     }
 
-    // Decrement post comments count via RPC function
-    await supabase.rpc('decrement_post_comments', { post_id: existing.post_id }).catch(async () => {
+    // Decrement thread comments count via RPC function
+    await supabase.rpc('decrement_thread_comments', { thread_id: existing.thread_id }).catch(async () => {
       // Fallback: fetch current count and decrement
-      const { data: post } = await supabase
-        .from('posts')
+      const { data: thread } = await supabase
+        .from('threads')
         .select('comments_count')
-        .eq('id', existing.post_id)
+        .eq('id', existing.thread_id)
         .single();
       
-      if (post) {
+      if (thread) {
         await supabase
-          .from('posts')
-          .update({ comments_count: Math.max((post.comments_count || 0) - 1, 0) })
-          .eq('id', existing.post_id);
+          .from('threads')
+          .update({ comments_count: Math.max((thread.comments_count || 0) - 1, 0) })
+          .eq('id', existing.thread_id);
       }
     });
 
@@ -1131,7 +1150,7 @@ class ApiService {
     const { data: existingLike } = await supabase
       .from('likes')
       .select('id')
-      .eq('post_id', postId)
+      .eq('thread_id', postId)
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -1146,44 +1165,44 @@ class ApiService {
         return {
           data: undefined,
           success: false,
-          message: error.message || 'Failed to unlike post',
+          message: error.message || 'Failed to unlike thread',
         };
       }
 
       // Decrement likes count via RPC function
-      await supabase.rpc('decrement_post_likes', { post_id: postId }).catch(async () => {
+      await supabase.rpc('decrement_thread_likes', { thread_id: postId }).catch(async () => {
         // Fallback: fetch current count and decrement
-        const { data: post } = await supabase
-          .from('posts')
+        const { data: thread } = await supabase
+          .from('threads')
           .select('likes_count')
           .eq('id', postId)
           .single();
         
-        if (post) {
+        if (thread) {
           await supabase
-            .from('posts')
-            .update({ likes_count: Math.max((post.likes_count || 0) - 1, 0) })
+            .from('threads')
+            .update({ likes_count: Math.max((thread.likes_count || 0) - 1, 0) })
             .eq('id', postId);
         }
       });
 
-      const { data: post } = await supabase
-        .from('posts')
+      const { data: thread } = await supabase
+        .from('threads')
         .select('likes_count')
         .eq('id', postId)
         .single();
 
       return {
-        data: { liked: false, likesCount: Math.max((post?.likes_count || 1) - 1, 0) },
+        data: { liked: false, likesCount: Math.max((thread?.likes_count || 1) - 1, 0) },
         success: true,
-        message: 'Post unliked',
+        message: 'Thread unliked',
       };
     } else {
       // Like
       const { error } = await supabase
         .from('likes')
         .insert({
-          post_id: postId,
+          thread_id: postId,
           user_id: user.id,
         });
 
@@ -1191,37 +1210,37 @@ class ApiService {
         return {
           data: undefined,
           success: false,
-          message: error.message || 'Failed to like post',
+          message: error.message || 'Failed to like thread',
         };
       }
 
       // Increment likes count via RPC function
-      await supabase.rpc('increment_post_likes', { post_id: postId }).catch(async () => {
+      await supabase.rpc('increment_thread_likes', { thread_id: postId }).catch(async () => {
         // Fallback: fetch current count and increment
-        const { data: post } = await supabase
-          .from('posts')
+        const { data: thread } = await supabase
+          .from('threads')
           .select('likes_count')
           .eq('id', postId)
           .single();
         
-        if (post) {
+        if (thread) {
           await supabase
-            .from('posts')
-            .update({ likes_count: (post.likes_count || 0) + 1 })
+            .from('threads')
+            .update({ likes_count: (thread.likes_count || 0) + 1 })
             .eq('id', postId);
         }
       });
 
-      const { data: post } = await supabase
-        .from('posts')
+      const { data: thread } = await supabase
+        .from('threads')
         .select('likes_count')
         .eq('id', postId)
         .single();
 
       return {
-        data: { liked: true, likesCount: (post?.likes_count || 0) + 1 },
+        data: { liked: true, likesCount: (thread?.likes_count || 0) + 1 },
         success: true,
-        message: 'Post liked',
+        message: 'Thread liked',
       };
     }
   }
@@ -1234,7 +1253,7 @@ class ApiService {
     const { data } = await supabase
       .from('likes')
       .select('id')
-      .eq('post_id', postId)
+      .eq('thread_id', postId)
       .eq('user_id', user.id)
       .maybeSingle();
 

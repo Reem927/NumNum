@@ -153,3 +153,4 @@ function MyComponent() {
 - The PostContext automatically refreshes posts on mount
 - Error handling is built into all API functions
 
+
