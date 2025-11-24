@@ -2,28 +2,42 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { usePosts } from '@/context/PostContext';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View, ActivityIndicator, Text, Image } from 'react-native';
-import { Post } from '@/types/posts';
+import { ScrollView, StyleSheet, TouchableOpacity, View, ActivityIndicator, Text, Image, RefreshControl, Alert, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Post, CreatePostData } from '@/types/posts';
+import EditThreadModal from '@/components/EditThreadModal';
+import NotificationsModal from '@/components/NotificationsModal';
 
 const CUISINES = ['Kuwaiti', 'Indian', 'British', 'Lebanese', 'Japanese', 'Chinese', 'Italian', 'Korean', 'French', 'Mexican'];
 
 export default function CommunityScreen() {
   const [activeTab, setActiveTab] = useState<'For You' | 'Following'>('For You');
-  const { posts, loading, error, toggleLike, refreshPosts, isLiked } = usePosts();
-  const { user } = useAuth();
+  const { posts, loading, error, toggleLike, refreshPosts, isLiked, updatePost, deletePost } = usePosts();
+  const { user: currentUser } = useAuth();
   const router = useRouter();
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [notificationsVisible, setNotificationsVisible] = useState(false);
 
   useEffect(() => {
     refreshPosts({ cuisine: activeCategory || undefined });
   }, [refreshPosts, activeCategory]);
 
+  // Refresh posts when screen comes into focus (e.g., returning from detail screen)
+  useFocusEffect(
+    useCallback(() => {
+      refreshPosts({ cuisine: activeCategory || undefined });
+    }, [refreshPosts, activeCategory])
+  );
+
   // Check liked status for all posts when they load
   useEffect(() => {
-    if (posts.length > 0 && user) {
+    if (posts.length > 0 && currentUser) {
       const checkLikedStatus = async () => {
         const liked = new Set<string>();
         await Promise.all(
@@ -36,7 +50,7 @@ export default function CommunityScreen() {
       };
       checkLikedStatus();
     }
-  }, [posts, user, isLiked]);
+  }, [posts, currentUser, isLiked]);
 
   const formatTimeAgo = (dateString: string): string => {
     const date = new Date(dateString);
@@ -50,8 +64,22 @@ export default function CommunityScreen() {
     return `${Math.floor(seconds / 604800)}w`;
   };
 
+  // Helper function to format count with proper singular/plural
+  const formatCount = (count: number, singular: string, plural: string): string => {
+    if (count === 1) {
+      return `${count} ${singular}`;
+    }
+    return `${count} ${plural}`;
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshPosts({ cuisine: activeCategory || undefined });
+    setRefreshing(false);
+  }, [refreshPosts, activeCategory]);
+
   const handleLike = async (postId: string) => {
-    if (!user) {
+    if (!currentUser) {
       // Navigate to login if not authenticated
       router.push('/auth/Login');
       return;
@@ -69,6 +97,8 @@ export default function CommunityScreen() {
         }
         return newSet;
       });
+      // Refresh posts to get updated likes count from the server
+      await refreshPosts({ cuisine: activeCategory || undefined });
     }
   };
 
@@ -78,6 +108,84 @@ export default function CommunityScreen() {
 
   const handleCommentPress = (postId: string) => {
     router.push(`/post/${postId}`);
+  };
+
+  const handleMoreOptions = (post: Post, e: any) => {
+    e.stopPropagation();
+    if (post.user_id === currentUser?.id) {
+      Alert.alert(
+        'Thread Options',
+        'What would you like to do?',
+        [
+          {
+            text: 'Edit Thread',
+            onPress: () => handleEditThread(post),
+          },
+          {
+            text: 'Delete Thread',
+            style: 'destructive',
+            onPress: () => handleDeleteThread(post.id),
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ],
+        { cancelable: true }
+      );
+    }
+  };
+
+  const handleEditThread = (post: Post) => {
+    setEditingPost(post);
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEdit = async (updates: {
+    content: string;
+    image_urls?: string[] | null;
+    attached_review_id?: string | null;
+  }) => {
+    if (!editingPost) return;
+
+    // Convert null to undefined for API compatibility
+    const apiUpdates: Partial<CreatePostData> & { image_urls?: string[]; attached_review_id?: string | null } = {
+      content: updates.content,
+      image_urls: updates.image_urls === null ? undefined : updates.image_urls,
+      attached_review_id: updates.attached_review_id === null ? undefined : updates.attached_review_id,
+    };
+
+    const success = await updatePost(editingPost.id, apiUpdates);
+    if (success) {
+      await refreshPosts({ cuisine: activeCategory || undefined });
+      setEditModalVisible(false);
+      setEditingPost(null);
+    }
+  };
+
+  const handleDeleteThread = (postId: string) => {
+    Alert.alert(
+      'Delete Thread',
+      'Are you sure you want to delete this thread? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const success = await deletePost(postId);
+            if (success) {
+              await refreshPosts({ cuisine: activeCategory || undefined });
+            } else {
+              Alert.alert('Error', 'Failed to delete thread');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderPost = (post: Post) => {
@@ -115,9 +223,14 @@ export default function CommunityScreen() {
           </View>
           <View style={styles.postActions}>
             <ThemedText style={styles.timestamp}>{timeAgo}</ThemedText>
-            <TouchableOpacity style={styles.moreButton}>
-              <IconSymbol name="ellipsis" size={16} color="#666" />
-            </TouchableOpacity>
+            {post.user_id === currentUser?.id && (
+              <TouchableOpacity 
+                style={styles.moreButton}
+                onPress={(e) => handleMoreOptions(post, e)}
+              >
+                <IconSymbol name="ellipsis" size={16} color="#666" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -177,7 +290,7 @@ export default function CommunityScreen() {
             </TouchableOpacity>
           </View>
           <ThemedText style={styles.engagementStats}>
-            {post.comments_count} replies · {post.likes_count} likes
+            {formatCount(post.comments_count, 'comment', 'comments')} · {formatCount(post.likes_count, 'like', 'likes')}
           </ThemedText>
         </View>
       </TouchableOpacity>
@@ -186,8 +299,21 @@ export default function CommunityScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollContainer}>
+      <ScrollView 
+        style={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.header}>
+          {/* Bell button positioned absolutely at top right */}
+          <TouchableOpacity 
+            style={styles.notificationButton}
+            onPress={() => setNotificationsVisible(true)}
+          >
+            <IconSymbol name="bell" size={18} color="#000" />
+          </TouchableOpacity>
+
           <View style={styles.headerTop}>
             <View style={styles.titleSection}>
 
@@ -203,6 +329,17 @@ export default function CommunityScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Search Button */}
+          <TouchableOpacity
+            style={styles.searchButton}
+            onPress={() => router.push('/SearchUsers')}
+          >
+            <View style={styles.searchButtonContent}>
+              <Ionicons name="search" size={20} color="#999" />
+              <ThemedText style={styles.searchButtonText}>Search users...</ThemedText>
+            </View>
+          </TouchableOpacity>
 
           <View style={styles.mainTabs}>
             <TouchableOpacity 
@@ -288,7 +425,7 @@ export default function CommunityScreen() {
         </View>
       )}
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.fab}
         onPress={() => router.push({
           pathname: '/create-post',
@@ -297,6 +434,21 @@ export default function CommunityScreen() {
       >
         <IconSymbol name="plus" size={24} color="#fff" />
       </TouchableOpacity>
+
+      <EditThreadModal
+        visible={editModalVisible}
+        post={editingPost}
+        onClose={() => {
+          setEditModalVisible(false);
+          setEditingPost(null);
+        }}
+        onSave={handleSaveEdit}
+      />
+
+      <NotificationsModal
+        visible={notificationsVisible}
+        onClose={() => setNotificationsVisible(false)}
+      />
     </View>
   );
 }
@@ -314,10 +466,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     paddingTop: 50,
+    position: 'relative',
   },
   headerTop: {
     paddingHorizontal: 15,
+    paddingTop: 0,
     paddingBottom: 10,
+    justifyContent: 'center',
+    minHeight: 34, // Match notification button height (18px icon + 8px padding * 2)
   },
   titleSection: {
     marginBottom: 15,
@@ -346,6 +502,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+  },
+  notificationButton: {
+    position: 'absolute',
+    top: 50, // Match paddingTop of header
+    right: 15,
+    padding: 8,
+    zIndex: 10,
   },
   actionLabel: {
     fontSize: 11,
@@ -594,5 +757,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     marginTop: 8,
+  },
+  searchButton: {
+    marginHorizontal: 15,
+    marginVertical: 10,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+  },
+  searchButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchButtonText: {
+    marginLeft: 10,
+    fontSize: 15,
+    color: '#999',
   },
 });

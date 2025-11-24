@@ -67,11 +67,19 @@ export default function FollowersFollowingModal({
   const loadData = async () => {
     setLoading(true);
   
-    const followersResponse = await apiService.getFollowers(userId!);
-    const followingResponse = await apiService.getFollowing(userId!);
-  
-    setFollowers(followersResponse.data);
-    setFollowing(followingResponse.data);
+    try {
+      const followersResponse = await apiService.getFollowers(userId!);
+      const followingResponse = await apiService.getFollowing(userId!);
+
+      // Handle undefined data by defaulting to empty arrays
+      setFollowers(followersResponse.data || []);
+      setFollowing(followingResponse.data || []);
+    } catch (error) {
+      console.error('Error loading followers/following:', error);
+      // Set empty arrays on error
+      setFollowers([]);
+      setFollowing([]);
+    }
   
     setLoading(false);
   };
