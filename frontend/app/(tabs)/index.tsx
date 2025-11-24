@@ -1,9 +1,17 @@
+// frontend/app/(tabs)/index.tsx
 import { useAuth } from '@/context/AuthContext';
 import { useSavedList } from '@/context/SavedListContext';
+import { useDiscoverFilters } from '@/context/DiscoverFilterContext';
+
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -15,25 +23,27 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
-// Shape of a row from Supabase
+// Row shape from Supabase
 type RestaurantRow = {
   id: string;
   name: string;
   cuisine: string | null;
   rating: number | null;
+  price_range: string | null;
   image_url: string | null;
-  // Supabase might send this as string[] | string | null
-  keywords: any;
+  keywords?: any;
 };
 
-// Shape we actually use in the UI
+// Shape used in UI
 type RestaurantCard = {
   id: string;
   name: string;
   cuisine: string;
   rating: string;
-  image: any; // require(...) or { uri: string }
+  ratingValue: number | null;
+  image: any;
   keywords: string[];
+  priceTier: string | null;
 };
 
 // Fallback local images by cuisine
@@ -75,11 +85,23 @@ function normalizeKeywords(raw: any): string[] {
   return [];
 }
 
+function normalizePriceRange(raw?: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed === '$' || trimmed === '$$') return trimmed;
+  if (trimmed.startsWith('$$$')) {
+    return '$$$+';
+  }
+  return trimmed;
+}
+
 export default function DiscoverScreen() {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const { saved, toggleSave, toggleFavorite, isSaved } = useSavedList();
   const { user } = useAuth();
+  const { filters } = useDiscoverFilters();
 
   // 🔖 Bookmark animation state
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -122,7 +144,7 @@ export default function DiscoverScreen() {
     }, 150);
   };
 
-  // 🔌 Fetch restaurants from Supabase once on mount
+  // Fetch restaurants from Supabase once at mount
   useEffect(() => {
     const fetchRestaurants = async () => {
       setLoadingRestaurants(true);
@@ -131,7 +153,7 @@ export default function DiscoverScreen() {
       const { data, error } = await supabase
         .from('restaurants')
         // map "Keywords" column from DB to 'keywords'
-        .select('id, name, cuisine, rating, image_url, keywords:Keywords')
+        .select('id, name, cuisine, rating, price_range, image_url, keywords:Keywords')
         .order('rating', { ascending: false });
 
       if (error) {
@@ -139,14 +161,23 @@ export default function DiscoverScreen() {
         setRestaurantsError(error.message);
         setRestaurants([]);
       } else if (data) {
-        const mapped: RestaurantCard[] = (data as RestaurantRow[]).map((row) => ({
-          id: row.id,
-          name: row.name,
-          cuisine: row.cuisine ?? 'Unknown',
-          rating: row.rating !== null ? String(row.rating) : '0.0',
-          image: row.image_url ? { uri: row.image_url } : getFallbackImage(row.cuisine),
-          keywords: normalizeKeywords(row.keywords),
-        }));
+        const mapped: RestaurantCard[] = (data as RestaurantRow[]).map(
+          (row) => ({
+            id: row.id,
+            name: row.name,
+            cuisine: row.cuisine ?? 'Unknown',
+            rating:
+              typeof row.rating === 'number'
+                ? row.rating.toFixed(1)
+                : '0.0',
+            ratingValue: typeof row.rating === 'number' ? row.rating : null,
+            image: row.image_url
+              ? { uri: row.image_url }
+              : getFallbackImage(row.cuisine),
+            keywords: normalizeKeywords((row as any).keywords),
+            priceTier: normalizePriceRange(row.price_range),
+          })
+        );
         setRestaurants(mapped);
       }
 
@@ -157,17 +188,49 @@ export default function DiscoverScreen() {
   }, []);
 
   // ============================
-  // ✨ Recommendation algorithm
+  // ✨ Recommendation + Filters
   // ============================
   const getPersonalizedRestaurants = (allRestaurants: RestaurantCard[]) => {
     if (!allRestaurants.length) return [];
 
+    // 0) Apply filters first (cuisine + rating)
+    let filtered = allRestaurants;
+
+    // cuisines from Filter modal
+    if (filters.categories.length > 0) {
+      const cats = new Set(
+        filters.categories.map((c) => c.toLowerCase().trim())
+      );
+      filtered = filtered.filter((rest) =>
+        cats.has(rest.cuisine.toLowerCase().trim())
+      );
+    }
+
+    // min rating from Filter modal
+    if (filters.minRating != null) {
+      filtered = filtered.filter((rest) => {
+        const ratingValue =
+          rest.ratingValue ??
+          (rest.rating ? parseFloat(rest.rating) : null);
+        return ratingValue != null && ratingValue >= filters.minRating!;
+      });
+    }
+
+    // price tier from Filter modal
+    if (filters.priceTier) {
+      filtered = filtered.filter(
+        (rest) => rest.priceTier === filters.priceTier
+      );
+    }
+
+    if (!filtered.length) return [];
+
     const favoriteCuisines = user?.preferences?.favoriteCuisines ?? [];
 
-    // 1) Liked/saved restaurants
-    const likedRestaurants = allRestaurants.filter((r) => isSaved(r.id));
+    // 1) Liked/saved restaurants inside the filtered set
+    const likedRestaurants = filtered.filter((r) => isSaved(r.id));
 
-    // 2) Keyword score map
+    // 2) Keyword score map from liked restaurants
     const keywordScores: Record<string, number> = {};
 
     likedRestaurants.forEach((rest) => {
@@ -178,34 +241,48 @@ export default function DiscoverScreen() {
       });
     });
 
-    // 3) Score each restaurant
-    const scored = allRestaurants.map((rest) => {
+    // 3) Score each restaurant in the filtered set
+    const scored = filtered.map((rest) => {
       let score = 0;
 
-      // keyword overlap
-      (rest.keywords ?? []).forEach((kw) => {
-        const key = kw.toLowerCase().trim();
-        if (!key) return;
-        score += keywordScores[key] ?? 0;
-      });
-
-      // cuisine boost
-      if (favoriteCuisines.includes(rest.cuisine)) {
-        score += 2;
+      // (a) If user has favorite cuisines, boost them
+      if (
+        favoriteCuisines.length > 0 &&
+        favoriteCuisines.includes(rest.cuisine)
+      ) {
+        score += 3;
       }
 
-      // small boost if already saved
+      // (b) Keyword overlap with liked restaurants
+      const restKeywords = rest.keywords ?? [];
+      restKeywords.forEach((kw) => {
+        const key = kw.toLowerCase().trim();
+        if (!key) return;
+        if (keywordScores[key]) {
+          score += keywordScores[key];
+        }
+      });
+
+      // (c) Small boost if already saved (feels familiar)
       if (isSaved(rest.id)) {
-        score += 0.5;
+        score += 1;
+      }
+
+      // (d) Tiny boost for higher rating
+      const ratingValue =
+        rest.ratingValue ?? (rest.rating ? parseFloat(rest.rating) : null);
+      if (ratingValue != null && !Number.isNaN(ratingValue)) {
+        score += ratingValue * 0.1;
       }
 
       return { rest, score };
     });
 
-    // 4) Sort by score, then rating, then name
+    // 4) Sort: score desc, then rating desc, then name
     scored.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
-      const ratingDiff = parseFloat(b.rest.rating) - parseFloat(a.rest.rating);
+      const ratingDiff =
+        parseFloat(b.rest.rating) - parseFloat(a.rest.rating);
       if (ratingDiff !== 0) return ratingDiff;
       return a.rest.name.localeCompare(b.rest.name);
     });
@@ -221,7 +298,12 @@ export default function DiscoverScreen() {
 
   if (loadingRestaurants) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View
+        style={[
+          styles.container,
+          { justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
         <ActivityIndicator size="large" color="#e65332" />
         <Text style={{ marginTop: 10 }}>Loading restaurants...</Text>
       </View>
@@ -233,31 +315,48 @@ export default function DiscoverScreen() {
       <View
         style={[
           styles.container,
-          { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+          {
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingHorizontal: 24,
+          },
         ]}
       >
-        <Text style={{ textAlign: 'center', marginBottom: 8 }}>Failed to load restaurants.</Text>
-        <Text style={{ textAlign: 'center', color: '#888' }}>{restaurantsError}</Text>
+        <Text style={{ textAlign: 'center', marginBottom: 8 }}>
+          Failed to load restaurants.
+        </Text>
+        <Text style={{ textAlign: 'center', color: '#888' }}>
+          {restaurantsError}
+        </Text>
       </View>
     );
   }
 
   if (!personalizedRestaurants || personalizedRestaurants.length === 0) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text>No restaurants available yet.</Text>
+      <View
+        style={[
+          styles.container,
+          { justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
+        <Text>No restaurants available for these filters yet.</Text>
       </View>
     );
   }
 
-  // ✅ Loop the restaurants
+  // Loop through restaurants (Tinder-style)
   const currentRestaurant =
-    personalizedRestaurants[currentIndex % personalizedRestaurants.length];
+    personalizedRestaurants[
+      currentIndex % personalizedRestaurants.length
+    ];
 
   const handleNextCard = () => {
     translateX.setValue(0);
     opacity.setValue(1);
-    setCurrentIndex((prev) => (prev + 1) % personalizedRestaurants.length);
+    setCurrentIndex(
+      (prev) => (prev + 1) % personalizedRestaurants.length
+    );
   };
 
   const animateSwipe = (direction: 'left' | 'right') => {
@@ -277,9 +376,6 @@ export default function DiscoverScreen() {
     ]).start(() => handleNextCard());
   };
 
-  // ============================
-  // Render
-  // ============================
   return (
     <View style={styles.container}>
       {/* Top Bar */}
@@ -288,12 +384,19 @@ export default function DiscoverScreen() {
           style={styles.searchContainer}
           onPress={() => router.push('/Search')}
         >
-          <Ionicons name="search" size={20} color="#888" style={{ marginRight: 5 }} />
-          <Text style={{ color: '#888', fontSize: 16 }}>Search restaurants...</Text>
+          <Ionicons
+            name="search"
+            size={20}
+            color="#888"
+            style={{ marginRight: 5 }}
+          />
+          <Text style={{ color: '#888', fontSize: 16 }}>
+            Search restaurants...
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.topIcons}>
-          {/* 🔖 Animated Bookmark Icon */}
+          {/* Bookmark icon */}
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             <TouchableOpacity onPress={handleBookmarkPress}>
               <Ionicons
@@ -325,10 +428,12 @@ export default function DiscoverScreen() {
         <Image source={currentRestaurant.image} style={styles.cardImage} />
         <Text style={styles.cardTitle}>{currentRestaurant.name}</Text>
         <Text style={styles.cardSubtitle}>
-          {currentRestaurant.cuisine} | Rating {currentRestaurant.rating}
+          {currentRestaurant.cuisine}
+          {currentRestaurant.priceTier ? ` • ${currentRestaurant.priceTier}` : ''} | Rating{' '}
+          {currentRestaurant.rating}
         </Text>
 
-        {/* Dietary Restriction Badges */}
+        {/* Dietary restriction badges from user preferences */}
         {user?.preferences?.dietaryRestrictions &&
           user.preferences.dietaryRestrictions.length > 0 && (
             <View style={styles.badgesContainer}>
@@ -354,11 +459,9 @@ export default function DiscoverScreen() {
         {/* Star (Blue) */}
         <TouchableOpacity
           style={[styles.circleButton, { borderColor: '#007AFF' }]}
-          onPress={async () => {
-            if (!isSaved(currentRestaurant.id)) {
-              await toggleSave(currentRestaurant);
-            }
-            await toggleFavorite(currentRestaurant.id);
+          onPress={() => {
+            toggleSave(currentRestaurant);
+            toggleFavorite(currentRestaurant.id);
             animateSwipe('right');
           }}
         >
@@ -368,10 +471,8 @@ export default function DiscoverScreen() {
         {/* Save (Green Heart) */}
         <TouchableOpacity
           style={[styles.circleButton, { borderColor: '#34C759' }]}
-          onPress={async () => {
-            if (!isSaved(currentRestaurant.id)) {
-              await toggleSave(currentRestaurant);
-            }
+          onPress={() => {
+            toggleSave(currentRestaurant);
             animateSwipe('right');
           }}
         >

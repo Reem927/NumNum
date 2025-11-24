@@ -58,7 +58,7 @@ export default function UserProfileScreen() {
         const { count: followersCount } = await supabase
           .from('follows')
           .select('*', { count: 'exact', head: true })
-          .eq('followed_id', userId)
+          .eq('followee_id', userId)
           .eq('status', 'accepted');
 
         const { count: followingCount } = await supabase
@@ -76,7 +76,7 @@ export default function UserProfileScreen() {
               .from('follows')
               .select('status')
               .eq('follower_id', supabaseUser.id)
-              .eq('followed_id', userId)
+              .eq('followee_id', userId)
               .single();
 
             if (followData) {

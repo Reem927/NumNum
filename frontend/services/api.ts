@@ -253,6 +253,18 @@ class ApiService {
       .from('follows')
       .select('follower_id')
       .eq('followed_id', userId)
+      .select(`
+        follower:follower_id (
+          id,
+          username,
+          display_name,
+          avatar_url,
+          bio,
+          is_public,
+          review_count
+        )
+      `)
+      .eq('followee_id', userId)
       .eq('status', 'accepted');
 
     if (followError) {
@@ -314,6 +326,17 @@ class ApiService {
     const { data: followData, error: followError } = await supabase
       .from('follows')
       .select('followed_id')
+      .select(`
+        following:followee_id (
+          id,
+          username,
+          display_name,
+          avatar_url,
+          bio,
+          is_public,
+          review_count
+        )
+      `)
       .eq('follower_id', userId)
       .eq('status', 'accepted');
 
@@ -507,7 +530,7 @@ class ApiService {
       .from('follows')
       .insert({
         follower_id: user.id,
-        followed_id: targetUserId,
+        followee_id: targetUserId,
         status,
       });
 
@@ -549,7 +572,7 @@ class ApiService {
       .from('follows')
       .delete()
       .eq('follower_id', user.id)
-      .eq('followed_id', targetUserId);
+      .eq('followee_id', targetUserId);
 
     if (error) {
       return {
@@ -586,7 +609,7 @@ class ApiService {
       .from('follows')
       .update({ status: 'accepted' })
       .eq('id', requestId)
-      .eq('followed_id', user.id);
+      .eq('followee_id', user.id);
 
     if (error) {
       return {
