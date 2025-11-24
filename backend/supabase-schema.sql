@@ -1,11 +1,10 @@
--- Supabase Database Schema for Posts, Comments, and Likes
+-- Supabase Database Schema for Reviews, Threads, Comments, and Likes
 -- Run this SQL in your Supabase SQL Editor
 
--- ========== POSTS TABLE ==========
-CREATE TABLE IF NOT EXISTS posts (
+-- ========== REVIEWS TABLE ==========
+CREATE TABLE IF NOT EXISTS reviews (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('review', 'thread')),
   content TEXT NOT NULL,
   restaurant_id UUID REFERENCES restaurants(id) ON DELETE SET NULL,
   rating NUMERIC(3, 2) CHECK (rating >= 0 AND rating <= 5),
@@ -16,16 +15,35 @@ CREATE TABLE IF NOT EXISTS posts (
   updated_at TIMESTAMPTZ
 );
 
--- Indexes for posts
-CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
-CREATE INDEX IF NOT EXISTS idx_posts_type ON posts(type);
-CREATE INDEX IF NOT EXISTS idx_posts_restaurant_id ON posts(restaurant_id);
-CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);
+-- Indexes for reviews
+CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_restaurant_id ON reviews(restaurant_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
 
--- ========== COMMENTS TABLE ==========
+-- ========== THREADS TABLE ==========
+CREATE TABLE IF NOT EXISTS threads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  cuisine TEXT,
+  attached_review_id UUID REFERENCES reviews(id) ON DELETE SET NULL,
+  image_urls TEXT[] DEFAULT '{}',
+  likes_count INTEGER DEFAULT 0,
+  comments_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ
+);
+
+-- Indexes for threads
+CREATE INDEX IF NOT EXISTS idx_threads_user_id ON threads(user_id);
+CREATE INDEX IF NOT EXISTS idx_threads_cuisine ON threads(cuisine);
+CREATE INDEX IF NOT EXISTS idx_threads_attached_review_id ON threads(attached_review_id);
+CREATE INDEX IF NOT EXISTS idx_threads_created_at ON threads(created_at DESC);
+
+-- ========== COMMENTS TABLE (FOR THREADS) ==========
 CREATE TABLE IF NOT EXISTS comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  thread_id UUID NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   parent_id UUID REFERENCES comments(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
@@ -35,31 +53,31 @@ CREATE TABLE IF NOT EXISTS comments (
 );
 
 -- Indexes for comments
-CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_comments_thread_id ON comments(thread_id);
 CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id);
 CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id);
 CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments(created_at DESC);
 
--- ========== LIKES TABLE ==========
+-- ========== LIKES TABLE (FOR THREADS) ==========
 CREATE TABLE IF NOT EXISTS likes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+  thread_id UUID REFERENCES threads(id) ON DELETE CASCADE,
   comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  -- Ensure a like is either for a post OR a comment, not both
+  -- Ensure a like is either for a thread OR a comment, not both
   CONSTRAINT check_like_target CHECK (
-    (post_id IS NOT NULL AND comment_id IS NULL) OR
-    (post_id IS NULL AND comment_id IS NOT NULL)
+    (thread_id IS NOT NULL AND comment_id IS NULL) OR
+    (thread_id IS NULL AND comment_id IS NOT NULL)
   ),
-  -- Ensure user can't like the same post/comment twice
-  CONSTRAINT unique_post_like UNIQUE (user_id, post_id) WHERE post_id IS NOT NULL,
+  -- Ensure user can't like the same thread/comment twice
+  CONSTRAINT unique_thread_like UNIQUE (user_id, thread_id) WHERE thread_id IS NOT NULL,
   CONSTRAINT unique_comment_like UNIQUE (user_id, comment_id) WHERE comment_id IS NOT NULL
 );
 
 -- Indexes for likes
 CREATE INDEX IF NOT EXISTS idx_likes_user_id ON likes(user_id);
-CREATE INDEX IF NOT EXISTS idx_likes_post_id ON likes(post_id);
+CREATE INDEX IF NOT EXISTS idx_likes_thread_id ON likes(thread_id);
 CREATE INDEX IF NOT EXISTS idx_likes_comment_id ON likes(comment_id);
 
 -- ========== PROFILES TABLE (if it doesn't exist) ==========
@@ -77,63 +95,115 @@ CREATE TABLE IF NOT EXISTS profiles (
 -- Index for profiles
 CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username);
 
--- ========== RPC FUNCTIONS FOR INCREMENT/DECREMENT COUNTS ==========
+-- ========== RPC FUNCTIONS FOR THREADS ==========
 
--- Increment post likes count
-CREATE OR REPLACE FUNCTION increment_post_likes(post_id uuid)
+-- Increment thread likes count
+CREATE OR REPLACE FUNCTION increment_thread_likes(thread_id uuid)
 RETURNS void AS $$
 BEGIN
-  UPDATE posts SET likes_count = likes_count + 1 WHERE id = post_id;
+  UPDATE threads SET likes_count = likes_count + 1 WHERE id = thread_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Decrement post likes count
-CREATE OR REPLACE FUNCTION decrement_post_likes(post_id uuid)
+-- Decrement thread likes count
+CREATE OR REPLACE FUNCTION decrement_thread_likes(thread_id uuid)
 RETURNS void AS $$
 BEGIN
-  UPDATE posts SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = post_id;
+  UPDATE threads SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = thread_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Increment post comments count
-CREATE OR REPLACE FUNCTION increment_post_comments(post_id uuid)
+-- Increment thread comments count
+CREATE OR REPLACE FUNCTION increment_thread_comments(thread_id uuid)
 RETURNS void AS $$
 BEGIN
-  UPDATE posts SET comments_count = comments_count + 1 WHERE id = post_id;
+  UPDATE threads SET comments_count = comments_count + 1 WHERE id = thread_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Decrement post comments count
-CREATE OR REPLACE FUNCTION decrement_post_comments(post_id uuid)
+-- Decrement thread comments count
+CREATE OR REPLACE FUNCTION decrement_thread_comments(thread_id uuid)
 RETURNS void AS $$
 BEGIN
-  UPDATE posts SET comments_count = GREATEST(comments_count - 1, 0) WHERE id = post_id;
+  UPDATE threads SET comments_count = GREATEST(comments_count - 1, 0) WHERE id = thread_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ========== RPC FUNCTIONS FOR REVIEWS ==========
+
+-- Increment review likes count
+CREATE OR REPLACE FUNCTION increment_review_likes(review_id uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE reviews SET likes_count = likes_count + 1 WHERE id = review_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Decrement review likes count
+CREATE OR REPLACE FUNCTION decrement_review_likes(review_id uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE reviews SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = review_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Increment review comments count
+CREATE OR REPLACE FUNCTION increment_review_comments(review_id uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE reviews SET comments_count = comments_count + 1 WHERE id = review_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Decrement review comments count
+CREATE OR REPLACE FUNCTION decrement_review_comments(review_id uuid)
+RETURNS void AS $$
+BEGIN
+  UPDATE reviews SET comments_count = GREATEST(comments_count - 1, 0) WHERE id = review_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ========== ROW LEVEL SECURITY (RLS) POLICIES ==========
 
 -- Enable RLS on all tables
-ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE threads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Posts policies
-CREATE POLICY "Posts are viewable by everyone"
-  ON posts FOR SELECT
+-- Reviews policies
+CREATE POLICY "Reviews are viewable by everyone"
+  ON reviews FOR SELECT
   USING (true);
 
-CREATE POLICY "Users can create their own posts"
-  ON posts FOR INSERT
+CREATE POLICY "Users can create their own reviews"
+  ON reviews FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can update their own posts"
-  ON posts FOR UPDATE
+CREATE POLICY "Users can update their own reviews"
+  ON reviews FOR UPDATE
   USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can delete their own posts"
-  ON posts FOR DELETE
+CREATE POLICY "Users can delete their own reviews"
+  ON reviews FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Threads policies
+CREATE POLICY "Threads are viewable by everyone"
+  ON threads FOR SELECT
+  USING (true);
+
+CREATE POLICY "Users can create their own threads"
+  ON threads FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own threads"
+  ON threads FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own threads"
+  ON threads FOR DELETE
   USING (auth.uid() = user_id);
 
 -- Comments policies
@@ -178,5 +248,3 @@ CREATE POLICY "Users can update their own profile"
 CREATE POLICY "Users can create their own profile"
   ON profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
-
-

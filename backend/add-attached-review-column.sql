@@ -6,3 +6,4 @@ ALTER TABLE threads ADD COLUMN IF NOT EXISTS attached_review_id UUID REFERENCES 
 CREATE INDEX IF NOT EXISTS idx_threads_attached_review_id ON threads(attached_review_id);
 
 
+

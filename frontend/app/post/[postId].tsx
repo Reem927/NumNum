@@ -16,16 +16,25 @@ import {
 } from 'react-native';
 import { usePosts } from '@/context/PostContext';
 import { useAuth } from '@/context/AuthContext';
-import { Post, Comment } from '@/types/posts';
+import { Post, Comment, CreatePostData } from '@/types/posts';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import EditThreadModal from '@/components/EditThreadModal';
 
 const MAX_COMMENT_LENGTH = 200;
+
+// Helper function to format count with proper singular/plural
+const formatCount = (count: number, singular: string, plural: string): string => {
+  if (count === 1) {
+    return `${count} ${singular}`;
+  }
+  return `${count} ${plural}`;
+};
 
 export default function PostDetailScreen() {
   const router = useRouter();
   const { postId } = useLocalSearchParams<{ postId: string }>();
-  const { getPost, toggleLike, getComments, createComment, isLiked } = usePosts();
+  const { getPost, toggleLike, getComments, createComment, isLiked, updatePost, deletePost } = usePosts();
   const { user } = useAuth();
 
   const [post, setPost] = useState<Post | null>(null);
@@ -36,6 +45,7 @@ export default function PostDetailScreen() {
   const [replyText, setReplyText] = useState<Record<string, string>>({});
   const [liked, setLiked] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -94,13 +104,8 @@ export default function PostDetailScreen() {
     const success = await toggleLike(post.id);
     if (success !== null) {
       setLiked(success);
-      // Update post likes count
-      if (post) {
-        setPost({
-          ...post,
-          likes_count: success ? post.likes_count + 1 : Math.max(post.likes_count - 1, 0),
-        });
-      }
+      // Reload the post to get the accurate likes count from the server
+      await loadPost();
     }
   };
 
@@ -125,10 +130,8 @@ export default function PostDetailScreen() {
         setCommentText('');
         setReplyingTo(null);
         await loadComments();
-        // Update post comments count
-        if (post) {
-          setPost({ ...post, comments_count: post.comments_count + 1 });
-        }
+        // Reload the post to get the accurate comments count from the server
+        await loadPost();
         // Scroll to bottom
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -159,11 +162,10 @@ export default function PostDetailScreen() {
 
       if (newReply) {
         setReplyText({ ...replyText, [parentId]: '' });
+        setReplyingTo(null); // Close the reply input after sending
         await loadComments();
-        // Update post comments count
-        if (post) {
-          setPost({ ...post, comments_count: post.comments_count + 1 });
-        }
+        // Reload the post to get the accurate comments count from the server
+        await loadPost();
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to post reply');
@@ -180,6 +182,84 @@ export default function PostDetailScreen() {
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
     if (seconds < 604800) return `${Math.floor(seconds / 86400)}d`;
     return `${Math.floor(seconds / 604800)}w`;
+  };
+
+  const handleMoreOptions = () => {
+    if (!post || post.user_id !== user?.id) return;
+
+    Alert.alert(
+      'Thread Options',
+      'What would you like to do?',
+      [
+        {
+          text: 'Edit Thread',
+          onPress: () => handleEditThread(),
+        },
+        {
+          text: 'Delete Thread',
+          style: 'destructive',
+          onPress: () => handleDeleteThread(),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleEditThread = () => {
+    if (!post) return;
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEdit = async (updates: {
+    content: string;
+    image_urls?: string[] | null;
+    attached_review_id?: string | null;
+  }) => {
+    if (!post) return;
+
+    // Convert null to undefined for API compatibility
+    const apiUpdates: Partial<CreatePostData> & { image_urls?: string[]; attached_review_id?: string | null } = {
+      content: updates.content,
+      image_urls: updates.image_urls === null ? undefined : updates.image_urls,
+      attached_review_id: updates.attached_review_id === null ? undefined : updates.attached_review_id,
+    };
+
+    const updatedPost = await updatePost(post.id, apiUpdates);
+    if (updatedPost) {
+      setPost(updatedPost);
+      setEditModalVisible(false);
+    }
+  };
+
+  const handleDeleteThread = () => {
+    if (!post) return;
+
+    Alert.alert(
+      'Delete Thread',
+      'Are you sure you want to delete this thread? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const success = await deletePost(post.id);
+            if (success) {
+              router.back();
+            } else {
+              Alert.alert('Error', 'Failed to delete thread');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderComment = (comment: Comment, level: number = 0) => {
@@ -312,16 +392,22 @@ export default function PostDetailScreen() {
   const timeAgo = formatTimeAgo(post.created_at);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Post</Text>
-        <View style={styles.placeholder} />
+        {post && post.user_id === user?.id && (
+          <TouchableOpacity onPress={handleMoreOptions} style={styles.moreButtonHeader}>
+            <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
+          </TouchableOpacity>
+        )}
+        {(!post || post.user_id !== user?.id) && <View style={styles.placeholder} />}
       </View>
 
       <ScrollView
@@ -358,7 +444,14 @@ export default function PostDetailScreen() {
                 </View>
               )}
             </View>
-            <ThemedText style={styles.timestamp}>{timeAgo}</ThemedText>
+            <View style={styles.postHeaderRight}>
+              <ThemedText style={styles.timestamp}>{timeAgo}</ThemedText>
+              {post.user_id === user?.id && (
+                <TouchableOpacity onPress={handleMoreOptions} style={styles.moreButtonPost}>
+                  <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           <ThemedText style={styles.postContent}>{post.content}</ThemedText>
@@ -393,11 +486,11 @@ export default function PostDetailScreen() {
                 size={20}
                 color={liked ? '#ff6b6b' : '#666'}
               />
-              <ThemedText style={styles.actionCount}>{post.likes_count}</ThemedText>
+              <ThemedText style={styles.actionCount}>{formatCount(post.likes_count, 'like', 'likes')}</ThemedText>
             </TouchableOpacity>
             <View style={styles.actionButton}>
               <IconSymbol name="bubble.left" size={20} color="#666" />
-              <ThemedText style={styles.actionCount}>{post.comments_count}</ThemedText>
+              <ThemedText style={styles.actionCount}>{formatCount(post.comments_count, 'comment', 'comments')}</ThemedText>
             </View>
             <TouchableOpacity style={styles.actionButton}>
               <IconSymbol name="paperplane" size={20} color="#666" />
@@ -408,7 +501,7 @@ export default function PostDetailScreen() {
         {/* Comments Section */}
         <View style={styles.commentsSection}>
           <ThemedText style={styles.commentsTitle}>
-            Comments ({comments.length})
+            Comments
           </ThemedText>
 
           {comments.length === 0 ? (
@@ -466,7 +559,17 @@ export default function PostDetailScreen() {
           )}
         </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+
+      <EditThreadModal
+        visible={editModalVisible}
+        post={post}
+        onClose={() => {
+          setEditModalVisible(false);
+        }}
+        onSave={handleSaveEdit}
+      />
+    </View>
   );
 }
 
@@ -516,6 +619,9 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 32,
+  },
+  moreButtonHeader: {
+    padding: 4,
   },
   scrollView: {
     flex: 1,
@@ -570,9 +676,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#856404',
   },
+  postHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   timestamp: {
     fontSize: 12,
     color: '#666',
+  },
+  moreButtonPost: {
+    padding: 4,
   },
   postContent: {
     fontSize: 16,
@@ -731,7 +845,7 @@ const styles = StyleSheet.create({
   },
   commentInputContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     padding: 12,
     paddingBottom: Platform.OS === 'ios' ? 30 : 12,
     borderTopWidth: 1,
@@ -759,6 +873,7 @@ const styles = StyleSheet.create({
   charCountContainer: {
     marginBottom: 4,
     alignItems: 'flex-start',
+    paddingLeft: 12,
   },
   charCount: {
     fontSize: 12,
@@ -775,6 +890,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e65332',
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 4,
   },
   sendButtonDisabled: {
     backgroundColor: '#e0e0e0',

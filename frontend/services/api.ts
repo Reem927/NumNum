@@ -248,46 +248,59 @@ class ApiService {
   // ========== SOCIAL GRAPH ==========
 
   async getFollowers(userId: string): Promise<ApiResponse<User[]>> {
-    const { data, error } = await supabase
+    // First, get the follower IDs
+    const { data: followData, error: followError } = await supabase
       .from('follows')
-      .select(`
-        follower:followed_id (
-          id,
-          username,
-          display_name,
-          avatar_url,
-          bio,
-          is_public,
-          review_count
-        )
-      `)
-      .eq('follower_id', userId)
+      .select('follower_id')
+      .eq('followed_id', userId)
       .eq('status', 'accepted');
 
-    if (error) {
+    if (followError) {
       return {
         data: undefined,
         success: false,
-        message: error.message || 'Failed to fetch followers',
+        message: followError.message || 'Failed to fetch followers',
       };
     }
 
-    const followers: User[] = (data || []).map((item: any) => {
-      const profile = item.follower;
+    if (!followData || followData.length === 0) {
       return {
-        id: profile.id,
-        email: '',
-        username: profile.username || '',
-        displayName: profile.display_name || '',
-        avatar: profile.avatar_url || undefined,
-        bio: profile.bio || '',
-        isPublic: profile.is_public ?? true,
-        hasCompletedOnboarding: true,
-        reviewCount: profile.review_count || 0,
-        followersCount: 0,
-        followingCount: 0,
+        data: [],
+        success: true,
+        message: 'Followers fetched successfully',
       };
-    });
+    }
+
+    // Extract follower IDs
+    const followerIds = followData.map(item => item.follower_id);
+
+    // Then, get the profiles for those IDs
+    const { data: profiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, bio, is_public, review_count')
+      .in('id', followerIds);
+
+    if (profileError) {
+      return {
+        data: undefined,
+        success: false,
+        message: profileError.message || 'Failed to fetch follower profiles',
+      };
+    }
+
+    const followers: User[] = (profiles || []).map((profile: any) => ({
+      id: profile.id,
+      email: '',
+      username: profile.username || '',
+      displayName: profile.display_name || '',
+      avatar: profile.avatar_url || undefined,
+      bio: profile.bio || '',
+      isPublic: profile.is_public ?? true,
+      hasCompletedOnboarding: true,
+      reviewCount: profile.review_count || 0,
+      followersCount: 0,
+      followingCount: 0,
+    }));
 
     return {
       data: followers,
@@ -297,51 +310,151 @@ class ApiService {
   }
 
   async getFollowing(userId: string): Promise<ApiResponse<User[]>> {
-    const { data, error } = await supabase
+    // First, get the followed IDs
+    const { data: followData, error: followError } = await supabase
       .from('follows')
-      .select(`
-        following:follower_id (
-          id,
-          username,
-          display_name,
-          avatar_url,
-          bio,
-          is_public,
-          review_count
-        )
-      `)
-      .eq('followed_id', userId)
+      .select('followed_id')
+      .eq('follower_id', userId)
       .eq('status', 'accepted');
 
-    if (error) {
+    if (followError) {
       return {
         data: undefined,
         success: false,
-        message: error.message || 'Failed to fetch following',
+        message: followError.message || 'Failed to fetch following',
       };
     }
 
-    const following: User[] = (data || []).map((item: any) => {
-      const profile = item.following;
+    if (!followData || followData.length === 0) {
       return {
-        id: profile.id,
-        email: '',
-        username: profile.username || '',
-        displayName: profile.display_name || '',
-        avatar: profile.avatar_url || undefined,
-        bio: profile.bio || '',
-        isPublic: profile.is_public ?? true,
-        hasCompletedOnboarding: true,
-        reviewCount: profile.review_count || 0,
-        followersCount: 0,
-        followingCount: 0,
+        data: [],
+        success: true,
+        message: 'Following fetched successfully',
       };
-    });
+    }
+
+    // Extract followed IDs
+    const followedIds = followData.map(item => item.followed_id);
+
+    // Then, get the profiles for those IDs
+    const { data: profiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, bio, is_public, review_count')
+      .in('id', followedIds);
+
+    if (profileError) {
+      return {
+        data: undefined,
+        success: false,
+        message: profileError.message || 'Failed to fetch following profiles',
+      };
+    }
+
+    const following: User[] = (profiles || []).map((profile: any) => ({
+      id: profile.id,
+      email: '',
+      username: profile.username || '',
+      displayName: profile.display_name || '',
+      avatar: profile.avatar_url || undefined,
+      bio: profile.bio || '',
+      isPublic: profile.is_public ?? true,
+      hasCompletedOnboarding: true,
+      reviewCount: profile.review_count || 0,
+      followersCount: 0,
+      followingCount: 0,
+    }));
 
     return {
       data: following,
       success: true,
       message: 'Following fetched successfully',
+    };
+  }
+
+  async searchUsers(query: string): Promise<ApiResponse<User[]>> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return {
+        data: undefined,
+        success: false,
+        message: 'User must be authenticated',
+      };
+    }
+
+    if (!query.trim()) {
+      return {
+        data: [],
+        success: true,
+        message: 'Empty query',
+      };
+    }
+
+    // Search profiles by username or display_name, excluding current user
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, bio, is_public, review_count, has_completed_onboarding')
+      .neq('id', user.id) // Exclude current user
+      .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+      .limit(20);
+
+    if (error) {
+      return {
+        data: undefined,
+        success: false,
+        message: error.message || 'Failed to search users',
+      };
+    }
+
+    if (!profiles || profiles.length === 0) {
+      return {
+        data: [],
+        success: true,
+        message: 'No users found',
+      };
+    }
+
+    // Get user IDs to check follow status
+    const userIds = profiles.map(p => p.id);
+
+    // Check follow status for all users in one query
+    const { data: followData } = await supabase
+      .from('follows')
+      .select('followed_id, status')
+      .eq('follower_id', user.id)
+      .in('followed_id', userIds);
+
+    // Create a map of follow statuses
+    const followStatusMap = new Map<string, 'following' | 'requested' | 'not_following'>();
+    followData?.forEach((follow: any) => {
+      const status = follow.status === 'accepted' ? 'following' : 'requested';
+      followStatusMap.set(follow.followed_id, status);
+    });
+
+    // Map profiles to User type with follow status
+    const users: User[] = profiles.map((profile: any) => {
+      const followStatus = followStatusMap.get(profile.id) || 'not_following';
+      
+      return {
+        id: profile.id,
+        email: '',
+        username: profile.username || '',
+        displayName: profile.display_name || profile.username || '',
+        avatar: profile.avatar_url || undefined,
+        bio: profile.bio || '',
+        isPublic: profile.is_public ?? true,
+        hasCompletedOnboarding: profile.has_completed_onboarding ?? false,
+        reviewCount: profile.review_count || 0,
+        followersCount: 0, // Can be calculated if needed
+        followingCount: 0, // Can be calculated if needed
+        followStatus: followStatus as 'not_following' | 'following' | 'requested',
+      };
+    });
+
+    return {
+      data: users,
+      success: true,
+      message: 'Users found successfully',
     };
   }
 
@@ -353,6 +466,23 @@ class ApiService {
         data: undefined,
         success: false,
         message: 'User must be authenticated',
+      };
+    }
+
+    // Check if already following
+    const { data: existingFollow } = await supabase
+      .from('follows')
+      .select('id, status')
+      .eq('follower_id', user.id)
+      .eq('followed_id', targetUserId)
+      .single();
+
+    if (existingFollow) {
+      // Already following or requested
+      return {
+        data: undefined,
+        success: true,
+        message: 'Already following this user',
       };
     }
 
@@ -382,6 +512,14 @@ class ApiService {
       });
 
     if (error) {
+      // Handle duplicate key error gracefully
+      if (error.code === '23505') { // Unique violation
+        return {
+          data: undefined,
+          success: true,
+          message: 'Already following this user',
+        };
+      }
       return {
         data: undefined,
         success: false,
@@ -658,15 +796,14 @@ class ApiService {
       .eq('id', data.user_id)
       .single();
 
-    // Fetch attached review if it exists (reviews are in posts table)
+    // Fetch attached review if it exists (reviews are in reviews table)
     let attachedReview: Post | undefined = undefined;
     if (data.attached_review_id) {
       const { data: reviewData } = await supabase
-        .from('posts')
+        .from('reviews')
         .select(`
           id,
           user_id,
-          type,
           content,
           restaurant_id,
           rating,
@@ -677,7 +814,6 @@ class ApiService {
           comments_count
         `)
         .eq('id', data.attached_review_id)
-        .eq('type', 'review')
         .single();
 
       if (reviewData) {
@@ -701,6 +837,7 @@ class ApiService {
 
         attachedReview = {
           ...reviewData,
+          type: 'review' as PostType,
           user: reviewProfile || undefined,
           restaurant: restaurant || undefined,
         };
@@ -754,7 +891,12 @@ class ApiService {
     };
 
     if (updates.content !== undefined) updateData.content = updates.content;
-    if (updates.image_urls !== undefined) updateData.image_urls = updates.image_urls;
+    if (updates.image_urls !== undefined) {
+      updateData.image_urls = updates.image_urls || [];
+    }
+    if (updates.attached_review_id !== undefined) {
+      updateData.attached_review_id = updates.attached_review_id || null;
+    }
 
     const { data, error } = await supabase
       .from('threads')
@@ -764,6 +906,8 @@ class ApiService {
         id,
         user_id,
         content,
+        cuisine,
+        attached_review_id,
         image_urls,
         likes_count,
         comments_count,
@@ -787,12 +931,53 @@ class ApiService {
       .eq('id', data.user_id)
       .single();
 
+    // Fetch attached review if it exists
+    let attachedReview: Post | undefined = undefined;
+    if (data.attached_review_id) {
+      const { data: reviewData } = await supabase
+        .from('reviews')
+        .select(`
+          id,
+          user_id,
+          content,
+          restaurant_id,
+          rating,
+          image_urls,
+          likes_count,
+          comments_count,
+          created_at,
+          updated_at
+        `)
+        .eq('id', data.attached_review_id)
+        .single();
+
+      if (reviewData) {
+        // Fetch restaurant data
+        let restaurant = undefined;
+        if (reviewData.restaurant_id) {
+          const { data: restaurantData } = await supabase
+            .from('restaurants')
+            .select('id, name, cuisine')
+            .eq('id', reviewData.restaurant_id)
+            .single();
+          restaurant = restaurantData || undefined;
+        }
+
+        attachedReview = {
+          ...reviewData,
+          type: 'review' as PostType,
+          restaurant,
+        };
+      }
+    }
+
     // Map thread to Post interface
     const post: Post = {
       ...data,
       type: 'thread' as PostType,
       user: profile || undefined,
       restaurant: undefined, // Threads don't have restaurants
+      attachedReview,
     };
 
     return {
@@ -890,7 +1075,9 @@ class ApiService {
       .single();
 
     // Update thread comments count via RPC function
-    await supabase.rpc('increment_thread_comments', { thread_id: commentData.thread_id }).catch(async () => {
+    const { error: rpcError } = await supabase.rpc('increment_thread_comments', { thread_id: commentData.thread_id });
+    if (rpcError) {
+      console.error('RPC Error (increment_thread_comments):', rpcError);
       // Fallback: fetch current count and increment
       const { data: thread } = await supabase
         .from('threads')
@@ -899,12 +1086,16 @@ class ApiService {
         .single();
       
       if (thread) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('threads')
           .update({ comments_count: (thread.comments_count || 0) + 1 })
           .eq('id', commentData.thread_id);
+        
+        if (updateError) {
+          console.error('Update Error (increment comments):', updateError);
+        }
       }
-    });
+    }
 
     const commentResult: Comment = {
       ...newComment,
@@ -1110,7 +1301,9 @@ class ApiService {
     }
 
     // Decrement thread comments count via RPC function
-    await supabase.rpc('decrement_thread_comments', { thread_id: existing.thread_id }).catch(async () => {
+    const { error: rpcError } = await supabase.rpc('decrement_thread_comments', { thread_id: existing.thread_id });
+    if (rpcError) {
+      console.error('RPC Error (decrement_thread_comments):', rpcError);
       // Fallback: fetch current count and decrement
       const { data: thread } = await supabase
         .from('threads')
@@ -1119,12 +1312,16 @@ class ApiService {
         .single();
       
       if (thread) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('threads')
           .update({ comments_count: Math.max((thread.comments_count || 0) - 1, 0) })
           .eq('id', existing.thread_id);
+        
+        if (updateError) {
+          console.error('Update Error (decrement comments):', updateError);
+        }
       }
-    });
+    }
 
     return {
       data: undefined,
@@ -1170,7 +1367,9 @@ class ApiService {
       }
 
       // Decrement likes count via RPC function
-      await supabase.rpc('decrement_thread_likes', { thread_id: postId }).catch(async () => {
+      const { error: rpcError } = await supabase.rpc('decrement_thread_likes', { thread_id: postId });
+      if (rpcError) {
+        console.error('RPC Error (decrement_thread_likes):', rpcError);
         // Fallback: fetch current count and decrement
         const { data: thread } = await supabase
           .from('threads')
@@ -1179,13 +1378,18 @@ class ApiService {
           .single();
         
         if (thread) {
-          await supabase
+          const { error: updateError } = await supabase
             .from('threads')
             .update({ likes_count: Math.max((thread.likes_count || 0) - 1, 0) })
             .eq('id', postId);
+          
+          if (updateError) {
+            console.error('Update Error (decrement likes):', updateError);
+          }
         }
-      });
+      }
 
+      // Fetch the updated count after RPC function completes
       const { data: thread } = await supabase
         .from('threads')
         .select('likes_count')
@@ -1193,7 +1397,7 @@ class ApiService {
         .single();
 
       return {
-        data: { liked: false, likesCount: Math.max((thread?.likes_count || 1) - 1, 0) },
+        data: { liked: false, likesCount: thread?.likes_count || 0 },
         success: true,
         message: 'Thread unliked',
       };
@@ -1215,7 +1419,9 @@ class ApiService {
       }
 
       // Increment likes count via RPC function
-      await supabase.rpc('increment_thread_likes', { thread_id: postId }).catch(async () => {
+      const { error: rpcError } = await supabase.rpc('increment_thread_likes', { thread_id: postId });
+      if (rpcError) {
+        console.error('RPC Error (increment_thread_likes):', rpcError);
         // Fallback: fetch current count and increment
         const { data: thread } = await supabase
           .from('threads')
@@ -1224,13 +1430,18 @@ class ApiService {
           .single();
         
         if (thread) {
-          await supabase
+          const { error: updateError } = await supabase
             .from('threads')
             .update({ likes_count: (thread.likes_count || 0) + 1 })
             .eq('id', postId);
+          
+          if (updateError) {
+            console.error('Update Error (increment likes):', updateError);
+          }
         }
-      });
+      }
 
+      // Fetch the updated count after RPC function completes
       const { data: thread } = await supabase
         .from('threads')
         .select('likes_count')
@@ -1238,7 +1449,7 @@ class ApiService {
         .single();
 
       return {
-        data: { liked: true, likesCount: (thread?.likes_count || 0) + 1 },
+        data: { liked: true, likesCount: thread?.likes_count || 0 },
         success: true,
         message: 'Thread liked',
       };

@@ -29,6 +29,7 @@ export default function RootLayout() {
             <Stack.Screen name="Filters" options={{ presentation: 'modal', headerShown: false}} />
             <Stack.Screen name="SavedList" options={{ headerShown: false }} />
             <Stack.Screen name="Search" options={{ presentation: 'fullScreenModal', animation: "slide_from_bottom", headerShown: false, gestureEnabled: true}} />
+            <Stack.Screen name="SearchUsers" options={{ headerShown: false }} />
             <Stack.Screen name="user/[userId]" options={{ headerShown: false }} />
             <Stack.Screen name="post/[postId]" options={{ headerShown: false }} />
             <Stack.Screen name="create-post" options={{ headerShown: false, presentation: 'modal' }} />
